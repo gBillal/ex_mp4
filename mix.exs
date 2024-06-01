@@ -33,6 +33,7 @@ defmodule ExMP4.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
+      {:ratio, "~> 4.0"},
       {:bunch, "~> 1.6"},
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false},
       {:dialyxir, ">= 0.0.0", only: :dev, runtime: false},
@@ -56,7 +57,7 @@ defmodule ExMP4.MixProject do
       extras: ["README.md", "LICENSE"],
       formatters: ["html"],
       source_ref: "v#{@version}",
-      nest_modules_by_prefix: [ExMP4, ExMP4.Container, ExMP4.Read]
+      nest_modules_by_prefix: [ExMP4, ExMP4.Box, ExMP4.Container, ExMP4.Read, ExMP4.Write]
     ]
   end
 end
