@@ -191,7 +191,7 @@ defmodule ExMP4.Reader do
   defp get_tracks(box) do
     box[:moov][:children]
     |> Keyword.get_values(:trak)
-    |> Enum.map(&Track.new/1)
+    |> Enum.map(&Track.from_trak_box/1)
     |> Map.new(&{&1.id, &1})
   end
 end

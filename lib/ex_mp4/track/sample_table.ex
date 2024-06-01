@@ -57,6 +57,7 @@ defmodule ExMP4.Track.SampleTable do
     |> maybe_store_first_dts(sample)
     |> do_store_sample(sample)
     |> update_decoding_deltas(sample)
+    |> update_composition_offsets(sample)
     |> maybe_store_sync_sample(sample)
     |> store_last_dts(sample)
   end
@@ -94,6 +95,7 @@ defmodule ExMP4.Track.SampleTable do
       :sync_samples,
       :chunk_offsets,
       :decoding_deltas,
+      :composition_offsets,
       :samples_per_chunk
     ]
 
@@ -215,8 +217,34 @@ defmodule ExMP4.Track.SampleTable do
         [%{sample_count: count, sample_delta: ^new_delta} | rest] ->
           [%{sample_count: count + 1, sample_delta: new_delta} | rest]
 
+        #
+        [entry | rest] ->
+          [
+            %{sample_count: 2, sample_delta: new_delta},
+            %{entry | sample_count: entry.sample_count - 1} | rest
+          ]
+      end
+    end)
+  end
+
+  defp update_composition_offsets(%{last_dts: nil} = sample_table, sample) do
+    offset = sample.pts - sample.dts
+
+    Map.put(sample_table, :composition_offsets, [
+      %{sample_count: 1, sample_composition_offset: offset}
+    ])
+  end
+
+  defp update_composition_offsets(sample_table, %Sample{dts: dts, pts: pts}) do
+    Map.update!(sample_table, :composition_offsets, fn previous_offsets ->
+      new_offset = pts - dts
+
+      case previous_offsets do
+        [%{sample_count: count, sample_composition_offset: ^new_offset} | rest] ->
+          [%{sample_count: count + 1, sample_composition_offset: new_offset} | rest]
+
         _different_delta_or_empty ->
-          [%{sample_count: 1, sample_delta: new_delta} | previous_deltas]
+          [%{sample_count: 1, sample_composition_offset: new_offset} | previous_offsets]
       end
     end)
   end

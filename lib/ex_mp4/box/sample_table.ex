@@ -10,6 +10,7 @@ defmodule ExMP4.Box.SampleTable do
 
     sample_description = assemble_sample_description(track)
     sample_deltas = table.decoding_deltas
+    composition_offsets = table.composition_offsets
     maybe_sample_sync = maybe_sample_sync(table)
     sample_to_chunk = assemble_sample_to_chunk(table)
     sample_sizes = assemble_sample_sizes(table)
@@ -33,6 +34,14 @@ defmodule ExMP4.Box.SampleTable do
                 flags: 0,
                 entry_count: length(sample_deltas),
                 entry_list: sample_deltas
+              }
+            },
+            ctts: %{
+              fields: %{
+                version: 0,
+                flags: 0,
+                entry_count: length(composition_offsets),
+                entry_list: composition_offsets
               }
             }
           ] ++
@@ -204,7 +213,8 @@ defmodule ExMP4.Box.SampleTable do
       chunk_offsets: unpack_chunk_offsets(boxes[:stco] || boxes[:co64]),
       decoding_deltas: boxes[:stts].fields.entry_list,
       composition_offsets: get_composition_offsets(boxes),
-      samples_per_chunk: boxes[:stsc].fields.entry_list
+      samples_per_chunk: boxes[:stsc].fields.entry_list,
+      sync_samples: unpack_sync_samples(boxes[:stss])
     }
   end
 
@@ -229,4 +239,10 @@ defmodule ExMP4.Box.SampleTable do
   defp unpack_sample_sizes(%{fields: %{entry_list: sizes}}) do
     sizes |> Enum.map(fn %{entry_size: size} -> size end)
   end
+
+  defp unpack_sync_samples(%{fields: %{entry_list: sync_samples}}) do
+    Enum.map(sync_samples, & &1.sample_number)
+  end
+
+  defp unpack_sync_samples(_stts), do: []
 end

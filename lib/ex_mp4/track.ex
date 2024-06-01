@@ -45,21 +45,27 @@ defmodule ExMP4.Track do
     :id,
     :type,
     :media,
-    :priv_data,
     :duration,
-    :timescale,
     :width,
     :height,
     :sample_rate,
     :channels,
     :sample_count,
     :sample_table,
-    :movie_duration
+    :movie_duration,
+    priv_data: <<>>,
+    timescale: 1000
   ]
 
   @doc false
-  @spec new(Container.t()) :: t()
-  def new(trak), do: ExMP4.Box.Track.unpack(trak)
+  @spec from_trak_box(Container.t()) :: t()
+  def from_trak_box(trak), do: ExMP4.Box.Track.unpack(trak)
+
+  @doc """
+  Create a new track
+  """
+  @spec new(Keyword.t()) :: t()
+  def new(opts), do: struct!(__MODULE__, opts)
 
   @doc false
   @spec sample_metadata(t(), non_neg_integer()) :: tuple()

@@ -71,7 +71,7 @@ defmodule ExMP4.Writer do
   A track is created by instantiating the public fields of `ExMP4.Track` except for `id`. The
   id is assigned by the writer.
   """
-  @spec add_track(t(), Track.t()) :: t()
+  @spec add_track(t(), Track.t()) :: {Track.id(), t()}
   def add_track(%__MODULE__{} = writer, track) do
     {track_id, writer} = Map.get_and_update!(writer, :next_track_id, &{&1, &1 + 1})
 
@@ -81,7 +81,7 @@ defmodule ExMP4.Writer do
         sample_table: %Track.SampleTable{}
     }
 
-    put_in(writer, [:tracks, track_id], track)
+    {track_id, put_in(writer, [:tracks, track_id], track)}
   end
 
   @doc """
