@@ -57,7 +57,14 @@ defmodule ExMP4.MixProject do
       extras: ["README.md", "LICENSE"],
       formatters: ["html"],
       source_ref: "v#{@version}",
-      nest_modules_by_prefix: [ExMP4, ExMP4.Box, ExMP4.Container, ExMP4.Read, ExMP4.Write]
+      nest_modules_by_prefix: [
+        ExMP4,
+        ExMP4.Box,
+        ExMP4.Container,
+        ExMP4.Read,
+        ExMP4.Track,
+        ExMP4.Write
+      ]
     ]
   end
 end
