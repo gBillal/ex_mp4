@@ -15,8 +15,13 @@ defmodule ExMP4.Track do
     * `:id` - the track id
     * `:type` - the type of the media of the track
     * `:media` - the codec used to encode the media.
+    * `:media_tag` - the box `name` to use for the `:media`.
+
+        This field is used to indicate the layout of some codec specific data, take for example `H264`,
+        `avc1` indicates that parameter sets are included in the sample description and removed from
+        the samples themselves.
     * `:duration` - the duration of the track in `:timescale` units.
-    * `:timescale` - the timescale used in the track.
+    * `:timescale` - the timescale used for the track.
     * `:width` - the width of the video frames.
     * `:height` - the height of the video frames.
     * `:sample_rate` - the sample rate of audio samples.
@@ -27,6 +32,7 @@ defmodule ExMP4.Track do
           id: id(),
           type: :video | :audio | :subtitle | :unknown,
           media: :h264 | :h265 | :aac | :opus | :unknown,
+          media_tag: ExMP4.Container.box_name_t(),
           priv_data: binary(),
           duration: non_neg_integer(),
           timescale: non_neg_integer(),
@@ -45,6 +51,7 @@ defmodule ExMP4.Track do
     :id,
     :type,
     :media,
+    :media_tag,
     :duration,
     :width,
     :height,

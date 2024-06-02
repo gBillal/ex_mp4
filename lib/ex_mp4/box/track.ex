@@ -184,6 +184,7 @@ defmodule ExMP4.Box.Track do
 
   defp get_media(track, mdia) do
     stsd = Container.get_box(mdia, [:minf, :stbl, :stsd])
+    track = %{track | media_tag: Keyword.keys(stsd[:children]) |> List.first()}
 
     cond do
       hevc = stsd[:children][:hvc1] || stsd[:children][:hev1] ->

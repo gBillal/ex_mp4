@@ -20,6 +20,7 @@ defmodule ExMP4.ReaderTest do
              id: 1,
              type: :video,
              media: :h264,
+             media_tag: :avc1,
              duration: 512,
              timescale: 12_800,
              width: 320,

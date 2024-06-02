@@ -79,7 +79,7 @@ defmodule ExMP4.Box.SampleTable do
   end
 
   defp assemble_sample_description(%Track{media: media} = track) when media in [:h264, :h265] do
-    {codec_tag, content_tag} = if media == :h264, do: {:avc1, :avcC}, else: {:hvc1, :hvcC}
+    {codec_tag, content_tag} = media_tag(track.media_tag, track.media)
 
     [
       {codec_tag,
@@ -162,11 +162,8 @@ defmodule ExMP4.Box.SampleTable do
   #   ]
   # end
 
-  # defp assemble_sample_deltas(%{timescale: timescale, decoding_deltas: decoding_deltas}),
-  #   do:
-  #     Enum.map(decoding_deltas, fn %{sample_count: count, sample_delta: delta} ->
-  #       %{sample_count: count, sample_delta: Helper.timescalify(delta, timescale)}
-  #     end)
+  defp media_tag(tag, :h264), do: {tag || :avc1, :avcC}
+  defp media_tag(tag, :h265), do: {tag || :hev1, :hvcC}
 
   defp maybe_sample_sync(%{sync_samples: []}), do: []
 
