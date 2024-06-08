@@ -8,6 +8,9 @@ defmodule ExMP4.ReaderTest do
   test "read mp4 file" do
     assert {:ok, reader} = Reader.new("test/fixtures/minimal.mp4")
 
+    assert reader.major_brand == "isom"
+    assert reader.major_brand_version == 512
+    assert reader.compatible_brands == ["isom", "iso2", "avc1", "mp41"]
     assert reader.duration == 62
     assert reader.timescale == 1_000
 
@@ -17,6 +20,7 @@ defmodule ExMP4.ReaderTest do
              id: 1,
              type: :video,
              media: :h264,
+             media_tag: :avc1,
              duration: 512,
              timescale: 12_800,
              width: 320,
@@ -31,7 +35,9 @@ defmodule ExMP4.ReaderTest do
              media: :aac,
              duration: 2_944,
              timescale: 48_000,
-             sample_count: 3
+             sample_count: 3,
+             sample_rate: 48_000,
+             channels: 2
            } =
              audio_track
 

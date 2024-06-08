@@ -12,5 +12,12 @@ defmodule ExMP4.Sample do
           content: binary()
         }
 
-  defstruct [:pts, :dts, :sync?, :content]
+  @enforce_keys [:pts, :dts, :content]
+  defstruct @enforce_keys ++ [sync?: false]
+
+  @doc """
+  Create a new sample
+  """
+  @spec new(Keyword.t()) :: t()
+  def new(opts), do: struct!(__MODULE__, opts)
 end

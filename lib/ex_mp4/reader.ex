@@ -147,8 +147,14 @@ defmodule ExMP4.Reader do
         reader =
           case header.name do
             :ftyp ->
-              read_and_parse_box(reader, header, {data, rest})
-              reader
+              [ftyp: box] = read_and_parse_box(reader, header, {data, rest})
+
+              %{
+                reader
+                | major_brand: box[:fields][:major_brand],
+                  major_brand_version: box[:fields][:major_brand_version],
+                  compatible_brands: box[:fields][:compatible_brands]
+              }
 
             :moov ->
               box = read_and_parse_box(reader, header, {data, rest})
@@ -185,10 +191,7 @@ defmodule ExMP4.Reader do
   defp get_tracks(box) do
     box[:moov][:children]
     |> Keyword.get_values(:trak)
-    |> Enum.map(fn trak ->
-      track = Track.new(trak: trak)
-      {track.id, track}
-    end)
-    |> Map.new()
+    |> Enum.map(&Track.from_trak_box/1)
+    |> Map.new(&{&1.id, &1})
   end
 end
