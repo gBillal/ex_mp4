@@ -6,13 +6,14 @@ defmodule ExMP4.Sample do
   @type id :: non_neg_integer()
 
   @type t :: %__MODULE__{
+          track_id: ExMP4.Track.id(),
           pts: non_neg_integer(),
           dts: non_neg_integer(),
           sync?: boolean(),
           content: binary()
         }
 
-  @enforce_keys [:pts, :dts, :content]
+  @enforce_keys [:track_id, :pts, :dts, :content]
   defstruct @enforce_keys ++ [sync?: false]
 
   @doc """

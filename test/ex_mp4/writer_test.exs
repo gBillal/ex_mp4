@@ -36,16 +36,43 @@ defmodule ExMP4.WriterTest do
     {video_track_id, writer} = Writer.add_track(writer, @video_track)
     {audio_track_id, writer} = Writer.add_track(writer, @audio_track)
 
-    video_sample_1 = Sample.new(dts: 0, pts: 2000, sync?: true, content: @video_payload)
-    video_sample_2 = Sample.new(dts: 1000, pts: 4000, content: @video_payload)
-    video_sample_3 = Sample.new(dts: 2000, pts: 5000, content: @video_payload)
-    video_sample_4 = Sample.new(dts: 3000, pts: 3000, content: @video_payload)
-    video_sample_5 = Sample.new(dts: 5000, pts: 7000, sync?: true, content: @video_payload)
+    video_sample_1 =
+      Sample.new(
+        track_id: video_track_id,
+        dts: 0,
+        pts: 2000,
+        sync?: true,
+        content: @video_payload
+      )
 
-    audio_sample_1 = Sample.new(dts: 0, pts: 0, content: @audio_payload)
-    audio_sample_2 = Sample.new(dts: 24_000, pts: 24_000, content: @audio_payload)
-    audio_sample_3 = Sample.new(dts: 48_000, pts: 48_000, content: @audio_payload)
-    audio_sample_4 = Sample.new(dts: 70_000, pts: 70_000, content: @audio_payload)
+    video_sample_2 =
+      Sample.new(track_id: video_track_id, dts: 1000, pts: 4000, content: @video_payload)
+
+    video_sample_3 =
+      Sample.new(track_id: video_track_id, dts: 2000, pts: 5000, content: @video_payload)
+
+    video_sample_4 =
+      Sample.new(track_id: video_track_id, dts: 3000, pts: 3000, content: @video_payload)
+
+    video_sample_5 =
+      Sample.new(
+        track_id: video_track_id,
+        dts: 5000,
+        pts: 7000,
+        sync?: true,
+        content: @video_payload
+      )
+
+    audio_sample_1 = Sample.new(track_id: audio_track_id, dts: 0, pts: 0, content: @audio_payload)
+
+    audio_sample_2 =
+      Sample.new(track_id: audio_track_id, dts: 24_000, pts: 24_000, content: @audio_payload)
+
+    audio_sample_3 =
+      Sample.new(track_id: audio_track_id, dts: 48_000, pts: 48_000, content: @audio_payload)
+
+    audio_sample_4 =
+      Sample.new(track_id: audio_track_id, dts: 70_000, pts: 70_000, content: @audio_payload)
 
     assert :ok =
              Writer.write_sample(writer, video_track_id, video_sample_1)
@@ -102,6 +129,7 @@ defmodule ExMP4.WriterTest do
 
     for {idx, {dts, pts, sync?}} <- Enum.with_index(expected_result) do
       assert %Sample{
+               track_id: video_track.id,
                dts: dts,
                pts: pts,
                sync?: sync?,

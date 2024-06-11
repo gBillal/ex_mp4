@@ -112,11 +112,85 @@ defmodule ExMP4.Reader do
     sample_data = reader.reader_mod.pread(reader.reader_state, sample_offset, sample_size)
 
     %Sample{
+      track_id: track_id,
       dts: dts,
       pts: pts,
       sync?: sync?,
       content: sample_data
     }
+  end
+
+  @doc """
+  Stream the samples.
+
+  The samples are retrieved ordered by their `dts` value.
+  """
+  @spec stream(t(), Keyword.t()) :: Enumerable.t()
+  def stream(reader, opts \\ []) do
+    tracks = Keyword.get(opts, :tracks, Map.keys(reader.tracks))
+    step = fn element, _acc -> {:suspend, element} end
+
+    acc =
+      Enum.map(tracks, fn track_id ->
+        track = Map.fetch!(reader.tracks, track_id)
+        {track_id, nil, &Enumerable.reduce(track.sample_table, &1, step)}
+      end)
+
+    Stream.resource(
+      fn -> acc end,
+      &next_element(&1, []),
+      fn _acc -> [] end
+    )
+    |> Stream.map(fn {track_id, metadata} ->
+      %{
+        dts: dts,
+        pts: pts,
+        sync?: sync?,
+        sample_size: sample_size,
+        sample_offset: sample_offset
+      } = metadata
+
+      sample_data = reader.reader_mod.pread(reader.reader_state, sample_offset, sample_size)
+
+      %Sample{
+        track_id: track_id,
+        dts: dts,
+        pts: pts,
+        sync?: sync?,
+        content: sample_data
+      }
+    end)
+  end
+
+  defp next_element([], []), do: {:halt, []}
+
+  defp next_element([], acc) do
+    {track_id, selected_element, _fun} =
+      Enum.min_by(acc, &elem(&1, 1), &(&1.dts <= &1.dts and &1.pts <= &2.pts))
+
+    acc =
+      Enum.map(acc, fn {track_id, element, fun} ->
+        case element == selected_element do
+          true -> {track_id, nil, fun}
+          false -> {track_id, element, fun}
+        end
+      end)
+
+    {[{track_id, selected_element}], acc}
+  end
+
+  defp next_element([{track_id, nil, fun} | rest], acc) do
+    case fun.({:cont, nil}) do
+      {:suspended, element, fun} ->
+        next_element(rest, [{track_id, element, fun} | acc])
+
+      {:done, _acc} ->
+        next_element(rest, acc)
+    end
+  end
+
+  defp next_element([head | rest], acc) do
+    next_element(rest, [head | acc])
   end
 
   @doc """
