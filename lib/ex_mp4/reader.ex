@@ -51,6 +51,13 @@ defmodule ExMP4.Reader do
   alias ExMP4.{Sample, Track}
 
   @typedoc """
+  Stream options.
+
+    - `tracks` - stream only the specified tracks.
+  """
+  @type stream_opts :: [tracks: [non_neg_integer()]]
+
+  @typedoc """
   Struct describing
   """
   @type t :: %__MODULE__{
@@ -88,6 +95,17 @@ defmodule ExMP4.Reader do
   end
 
   @doc """
+  The same as `new/1`, but raises if it fails.
+  """
+  @spec new!(Path.t()) :: t()
+  def new!(filename) do
+    case new(filename) do
+      {:ok, reader} -> reader
+      {:error, reason} -> raise "could not open reader: #{inspect(reason)}"
+    end
+  end
+
+  @doc """
   Get all the available tracks.
   """
   @spec tracks(t()) :: [Track.t()]
@@ -104,6 +122,9 @@ defmodule ExMP4.Reader do
 
   The first `sample_id` of any track starts at `0`. The `sample_count` field
   of track provides the total number of samples on the track.
+
+  Retrieving samples by their id is slow since it scans all the metadata to get
+  the specified sample, a better approach is to stream all the samples using `stream/2`.
   """
   @spec read_sample(t(), Track.id(), Sample.id()) :: Sample.t()
   def read_sample(%__MODULE__{} = reader, track_id, sample_id) do
@@ -125,7 +146,7 @@ defmodule ExMP4.Reader do
 
   The samples are retrieved ordered by their `dts` value.
   """
-  @spec stream(t(), Keyword.t()) :: Enumerable.t()
+  @spec stream(t(), stream_opts()) :: Enumerable.t()
   def stream(reader, opts \\ []) do
     tracks = Keyword.get(opts, :tracks, Map.keys(reader.tracks))
     step = fn element, _acc -> {:suspend, element} end

@@ -54,7 +54,7 @@ defmodule ExMP4.MixProject do
   defp docs do
     [
       main: "readme",
-      extras: ["README.md", "LICENSE"],
+      extras: ["README.md", "examples/copy_track.livemd", "LICENSE"],
       formatters: ["html"],
       source_ref: "v#{@version}",
       nest_modules_by_prefix: [

@@ -38,6 +38,17 @@ defmodule ExMP4.Writer do
   end
 
   @doc """
+  The same as `new/1`, but raises if it fails.
+  """
+  @spec new!(Path.t()) :: t()
+  def new!(filepath) do
+    case new(filepath) do
+      {:ok, writer} -> writer
+      {:error, reason} -> raise "could not open writer: #{inspect(reason)}"
+    end
+  end
+
+  @doc """
   Write the mp4 header.
 
   This function should be called first before adding tracks.
