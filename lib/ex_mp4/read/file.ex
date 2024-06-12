@@ -6,7 +6,7 @@ defmodule ExMP4.Read.File do
   use ExMP4.Read
 
   @impl true
-  def open(filename), do: File.open(filename, [:binary, :read])
+  def open(filename), do: File.open(filename, [:binary, :raw, :read])
 
   @impl true
   def read(fd, chars), do: IO.binread(fd, chars)

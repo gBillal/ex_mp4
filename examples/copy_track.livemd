@@ -1,0 +1,68 @@
+# Video Track Copier
+
+```elixir
+Mix.install([{:ex_mp4, path: "."}, {:kino, "~> 0.11.0"}])
+```
+
+## Track Copier
+
+In this example, we'll copy the video track from an input MP4 file to another file.
+
+<!-- livebook:{"break_markdown":true} -->
+
+First let's add a module that'll copy the video track from a file to another one
+
+```elixir
+defmodule TrackCopier do
+  require Logger
+
+  alias ExMP4.{Reader, Writer}
+
+  def copy(source, dest) do
+    reader = Reader.new!(source)
+    writer = Writer.new!(dest)
+
+    Logger.info("""
+    Reader info: ===============
+      Path: #{inspect(source)}
+      Duration: #{inspect(reader.duration)}
+      Timescale: #{inspect(reader.timescale)}
+      Tracks: #{length(Reader.tracks(reader))}
+    """)
+
+    video_track =
+      reader
+      |> Reader.tracks()
+      |> Enum.find(&(&1.type == :video))
+
+    {track_id, writer} =
+      writer
+      |> Writer.write_header()
+      |> Writer.add_track(video_track)
+
+    Reader.stream(reader, tracks: [video_track.id])
+    |> Enum.reduce(writer, &Writer.write_sample(&2, track_id, &1))
+    |> Writer.write_trailer()
+  end
+end
+```
+
+Next we create a form that accepts the source path and the destination of the new MP4 file.
+
+```elixir
+form =
+  Kino.Control.form(
+    [
+      source_path: Kino.Input.text("Source Path"),
+      dest_path: Kino.Input.text("Destination Path")
+    ],
+    submit: "Submit"
+  )
+
+Kino.listen(form, fn %{data: data} ->
+  TrackCopier.copy(data.source_path, data.dest_path)
+  IO.inspect("Done copying")
+end)
+
+form
+```

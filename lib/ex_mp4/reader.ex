@@ -51,6 +51,13 @@ defmodule ExMP4.Reader do
   alias ExMP4.{Sample, Track}
 
   @typedoc """
+  Stream options.
+
+    - `tracks` - stream only the specified tracks.
+  """
+  @type stream_opts :: [tracks: [non_neg_integer()]]
+
+  @typedoc """
   Struct describing
   """
   @type t :: %__MODULE__{
@@ -88,6 +95,17 @@ defmodule ExMP4.Reader do
   end
 
   @doc """
+  The same as `new/1`, but raises if it fails.
+  """
+  @spec new!(Path.t()) :: t()
+  def new!(filename) do
+    case new(filename) do
+      {:ok, reader} -> reader
+      {:error, reason} -> raise "could not open reader: #{inspect(reason)}"
+    end
+  end
+
+  @doc """
   Get all the available tracks.
   """
   @spec tracks(t()) :: [Track.t()]
@@ -104,6 +122,9 @@ defmodule ExMP4.Reader do
 
   The first `sample_id` of any track starts at `0`. The `sample_count` field
   of track provides the total number of samples on the track.
+
+  Retrieving samples by their id is slow since it scans all the metadata to get
+  the specified sample, a better approach is to stream all the samples using `stream/2`.
   """
   @spec read_sample(t(), Track.id(), Sample.id()) :: Sample.t()
   def read_sample(%__MODULE__{} = reader, track_id, sample_id) do
@@ -112,11 +133,85 @@ defmodule ExMP4.Reader do
     sample_data = reader.reader_mod.pread(reader.reader_state, sample_offset, sample_size)
 
     %Sample{
+      track_id: track_id,
       dts: dts,
       pts: pts,
       sync?: sync?,
       content: sample_data
     }
+  end
+
+  @doc """
+  Stream the samples.
+
+  The samples are retrieved ordered by their `dts` value.
+  """
+  @spec stream(t(), stream_opts()) :: Enumerable.t()
+  def stream(reader, opts \\ []) do
+    tracks = Keyword.get(opts, :tracks, Map.keys(reader.tracks))
+    step = fn element, _acc -> {:suspend, element} end
+
+    acc =
+      Enum.map(tracks, fn track_id ->
+        track = Map.fetch!(reader.tracks, track_id)
+        {track_id, nil, &Enumerable.reduce(track.sample_table, &1, step)}
+      end)
+
+    Stream.resource(
+      fn -> acc end,
+      &next_element(&1, []),
+      fn _acc -> [] end
+    )
+    |> Stream.map(fn {track_id, metadata} ->
+      %{
+        dts: dts,
+        pts: pts,
+        sync?: sync?,
+        sample_size: sample_size,
+        sample_offset: sample_offset
+      } = metadata
+
+      sample_data = reader.reader_mod.pread(reader.reader_state, sample_offset, sample_size)
+
+      %Sample{
+        track_id: track_id,
+        dts: dts,
+        pts: pts,
+        sync?: sync?,
+        content: sample_data
+      }
+    end)
+  end
+
+  defp next_element([], []), do: {:halt, []}
+
+  defp next_element([], acc) do
+    {track_id, selected_element, _fun} =
+      Enum.min_by(acc, &elem(&1, 1), &(&1.dts <= &1.dts and &1.pts <= &2.pts))
+
+    acc =
+      Enum.map(acc, fn {track_id, element, fun} ->
+        case element == selected_element do
+          true -> {track_id, nil, fun}
+          false -> {track_id, element, fun}
+        end
+      end)
+
+    {[{track_id, selected_element}], acc}
+  end
+
+  defp next_element([{track_id, nil, fun} | rest], acc) do
+    case fun.({:cont, nil}) do
+      {:suspended, element, fun} ->
+        next_element(rest, [{track_id, element, fun} | acc])
+
+      {:done, _acc} ->
+        next_element(rest, acc)
+    end
+  end
+
+  defp next_element([head | rest], acc) do
+    next_element(rest, [head | acc])
   end
 
   @doc """

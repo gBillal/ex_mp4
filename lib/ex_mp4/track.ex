@@ -77,12 +77,15 @@ defmodule ExMP4.Track do
   @doc false
   @spec sample_metadata(t(), non_neg_integer()) :: tuple()
   def sample_metadata(%{sample_table: sample_table}, sample_id) do
-    {
-      SampleTable.sample_timestamps(sample_table, sample_id),
-      SampleTable.sync?(sample_table, sample_id),
-      SampleTable.sample_size(sample_table, sample_id),
-      SampleTable.sample_offset(sample_table, sample_id)
-    }
+    %{
+      dts: dts,
+      pts: pts,
+      sync?: sync?,
+      sample_size: sample_size,
+      sample_offset: sample_offset
+    } = Enum.at(sample_table, sample_id)
+
+    {{dts, pts}, sync?, sample_size, sample_offset}
   end
 
   @doc false

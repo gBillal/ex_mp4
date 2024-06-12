@@ -36,7 +36,10 @@ defmodule ExMP4.Track.SampleTable do
               sample_count: pos_integer
             }
           ],
-          sample_size: non_neg_integer
+          sample_size: non_neg_integer,
+          sample_index: non_neg_integer,
+          elapsed_duration: non_neg_integer,
+          chunk_sample_index: non_neg_integer
         }
 
   defstruct chunk: [],
@@ -49,7 +52,11 @@ defmodule ExMP4.Track.SampleTable do
             chunk_offsets: [],
             decoding_deltas: [],
             composition_offsets: [],
-            samples_per_chunk: []
+            samples_per_chunk: [],
+            # Used for Enumerable
+            sample_index: 1,
+            elapsed_duration: 0,
+            chunk_sample_index: 1
 
   @spec store_sample(t(), Sample.t()) :: t()
   def store_sample(sample_table, sample) do
@@ -104,85 +111,6 @@ defmodule ExMP4.Track.SampleTable do
 
       %{sample_table | key => reversed}
     end)
-  end
-
-  @spec sample_timestamps(t(), non_neg_integer()) :: {non_neg_integer(), non_neg_integer()}
-  def sample_timestamps(sample_table, sample_id) do
-    decoding_deltas = sample_table.decoding_deltas
-    composition_offsets = sample_table.composition_offsets
-
-    dts =
-      Enum.reduce_while(decoding_deltas, {0, sample_id}, fn
-        %{sample_count: count, sample_delta: delta}, {dts, id} when id < count ->
-          {:halt, dts + id * delta}
-
-        %{sample_count: count, sample_delta: delta}, {dts, id} ->
-          {:cont, {dts + count * delta, id - count}}
-      end)
-
-    offset =
-      Enum.reduce_while(composition_offsets, sample_id, fn
-        %{sample_count: count} = entry, id when id < count ->
-          {:halt, entry.sample_composition_offset}
-
-        %{sample_count: count}, id ->
-          {:cont, id - count}
-      end)
-
-    {dts, dts + offset}
-  end
-
-  @spec sync?(t(), non_neg_integer()) :: boolean()
-  def sync?(%{sync_samples: []}, _sample_id), do: true
-  def sync?(%{sync_samples: stss}, sample_id), do: Enum.member?(stss, sample_id + 1)
-
-  @spec sample_size(t(), non_neg_integer()) :: non_neg_integer()
-  def sample_size(%{sample_sizes: [], sample_size: size}, _sample_id), do: size
-  def sample_size(%{sample_sizes: stsz}, sample_id), do: Enum.at(stsz, sample_id)
-
-  @spec sample_offset(t(), non_neg_integer()) :: non_neg_integer()
-  def sample_offset(sample_table, sample_id) do
-    %{
-      chunk_offsets: chunk_offsets,
-      samples_per_chunk: samples_per_chunk,
-      sample_sizes: sample_sizes
-    } = sample_table
-
-    {chunk_id, first_sample_id, sample_offset} =
-      samples_per_chunk
-      |> Enum.chunk_every(2, 1)
-      |> Enum.reduce_while(0, fn
-        [entry1, entry2], id ->
-          chunk_size = entry2.first_chunk - entry1.first_chunk
-          max_id = id + chunk_size * entry1.samples_per_chunk
-
-          if sample_id < max_id,
-            do: {:halt, calculate_chunk_id(entry1, sample_id, id)},
-            else: {:cont, max_id}
-
-        [entry], id ->
-          {:halt, calculate_chunk_id(entry, sample_id, id)}
-      end)
-
-    chunk_offset = Enum.at(chunk_offsets, chunk_id - 1)
-
-    offset_in_chunk =
-      case sample_sizes do
-        [] ->
-          sample_table.sample_size * (sample_offset - first_sample_id)
-
-        _sizes ->
-          Enum.slice(sample_sizes, first_sample_id, sample_offset) |> Enum.sum()
-      end
-
-    chunk_offset + offset_in_chunk
-  end
-
-  defp calculate_chunk_id(entry, sample_id, current_id) do
-    chunk_id = div(sample_id - current_id, entry.samples_per_chunk) + entry.first_chunk
-    offset = rem(sample_id - current_id, entry.samples_per_chunk)
-
-    {chunk_id, sample_id - offset, offset}
   end
 
   defp do_store_sample(sample_table, %{content: payload}),
@@ -270,5 +198,145 @@ defmodule ExMP4.Track.SampleTable do
           ]
       end
     end)
+  end
+
+  defimpl Enumerable do
+    def reduce(%{sample_index: index, sample_count: count}, {:cont, acc}, _fun)
+        when index > count,
+        do: {:done, acc}
+
+    def reduce(sample_table, {:suspend, acc}, fun) do
+      {:suspended, acc, &reduce(sample_table, &1, fun)}
+    end
+
+    def reduce(_sample_table, {:halt, acc}, _fun), do: {:halted, acc}
+
+    def reduce(sample_table, {:cont, acc}, fun) do
+      element = %{
+        dts: 0,
+        pts: 0,
+        sync?: false,
+        sample_offset: 0,
+        sample_size: 0
+      }
+
+      {sample_table, element} =
+        {sample_table, element}
+        |> sample_timestamps()
+        |> sync_sample()
+        |> sample_size()
+        |> sample_offset()
+
+      reduce(sample_table, fun.(element, acc), fun)
+    end
+
+    def count(%{sample_count: count}), do: {:ok, count}
+
+    def member?(_enumerable, _element) do
+      {:error, __MODULE__}
+    end
+
+    def slice(_enumerable) do
+      {:error, __MODULE__}
+    end
+
+    defp sample_timestamps({%{elapsed_duration: duration} = sample_table, element}) do
+      {delta, decoding_deltas} =
+        case sample_table.decoding_deltas do
+          [%{sample_count: 1, sample_delta: delta} | decoding_deltas] ->
+            {delta, decoding_deltas}
+
+          [%{sample_count: count, sample_delta: delta} = entry | decoding_deltas] ->
+            {delta, [%{entry | sample_count: count - 1} | decoding_deltas]}
+        end
+
+      {offset, composition_offsets} =
+        case sample_table.composition_offsets do
+          [%{sample_count: 1, sample_composition_offset: offset} | composition_offsets] ->
+            {offset, composition_offsets}
+
+          [%{sample_count: count, sample_composition_offset: offset} | composition_offsets] ->
+            {offset,
+             [
+               %{sample_count: count - 1, sample_composition_offset: offset}
+               | composition_offsets
+             ]}
+        end
+
+      element = %{element | dts: duration, pts: duration + offset}
+
+      sample_table = %{
+        sample_table
+        | decoding_deltas: decoding_deltas,
+          composition_offsets: composition_offsets,
+          elapsed_duration: duration + delta
+      }
+
+      {sample_table, element}
+    end
+
+    defp sync_sample({%{sample_index: idx} = sample_table, element}) do
+      {sync?, sync_samples} =
+        case sample_table.sync_samples do
+          [] -> {true, []}
+          [^idx] -> {true, [idx]}
+          [^idx | sync_samples] -> {true, sync_samples}
+          sync_samples -> {false, sync_samples}
+        end
+
+      {%{sample_table | sync_samples: sync_samples, sample_index: idx + 1},
+       %{element | sync?: sync?}}
+    end
+
+    defp sample_size({%{sample_sizes: []} = sample_table, element}) do
+      {sample_table, %{element | sample_size: sample_table.sample_size}}
+    end
+
+    defp sample_size({sample_table, element}) do
+      [sample_size | sample_sizes] = sample_table.sample_sizes
+      {%{sample_table | sample_sizes: sample_sizes}, %{element | sample_size: sample_size}}
+    end
+
+    defp sample_offset({sample_table, element}) do
+      %{
+        chunk_offsets: chunk_offsets,
+        samples_per_chunk: samples_per_chunk,
+        chunk_sample_index: index
+      } = sample_table
+
+      [chunk_offset | chunk_offsets] = chunk_offsets
+
+      {samples_per_chunk, offset, chunk_offsets, index} =
+        case samples_per_chunk do
+          [%{samples_per_chunk: ^index} = entry | samples_per_chunk] ->
+            samples_per_chunk = [
+              %{entry | first_chunk: entry.first_chunk + 1} | samples_per_chunk
+            ]
+
+            {samples_per_chunk, chunk_offset, chunk_offsets, 1}
+
+          samples_per_chunk ->
+            {samples_per_chunk, chunk_offset,
+             [chunk_offset + element.sample_size | chunk_offsets], index + 1}
+        end
+
+      samples_per_chunk =
+        case samples_per_chunk do
+          [%{first_chunk: chunk}, %{first_chunk: chunk} = entry | samples_per_chunk] ->
+            [entry | samples_per_chunk]
+
+          samples_per_chunk ->
+            samples_per_chunk
+        end
+
+      sample_table = %{
+        sample_table
+        | chunk_offsets: chunk_offsets,
+          samples_per_chunk: samples_per_chunk,
+          chunk_sample_index: index
+      }
+
+      {sample_table, %{element | sample_offset: offset}}
+    end
   end
 end
