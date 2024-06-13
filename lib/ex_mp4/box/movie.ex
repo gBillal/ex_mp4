@@ -29,6 +29,32 @@ defmodule ExMP4.Box.Movie do
     [moov: %{children: header ++ track_boxes ++ extensions, fields: %{}}]
   end
 
+  @spec adjust_chunk_offsets(Container.t()) :: Container.t()
+  def adjust_chunk_offsets(movie_box) do
+    movie_box_size = movie_box |> Container.serialize!() |> byte_size()
+    movie_box_children = get_in(movie_box, [:moov, :children])
+
+    # updates all `trak` boxes by adding `movie_box_size` to the offset of each chunk in their sample tables
+    track_boxes_with_offset =
+      movie_box_children
+      |> Keyword.get_values(:trak)
+      |> Enum.map(fn trak ->
+        Container.update_box(
+          trak.children,
+          [:mdia, :minf, :stbl, :stco],
+          [:fields, :entry_list],
+          &Enum.map(&1, fn %{chunk_offset: offset} -> %{chunk_offset: offset + movie_box_size} end)
+        )
+      end)
+      |> Enum.map(&{:trak, %{children: &1, fields: %{}}})
+
+    # replaces all `trak` boxes with the ones with updated chunk offsets
+    movie_box_children
+    |> Keyword.delete(:trak)
+    |> Keyword.merge(track_boxes_with_offset)
+    |> then(&[moov: %{children: &1, fields: %{}}])
+  end
+
   defp movie_header(tracks) do
     longest_track = Enum.max_by(tracks, & &1.movie_duration)
 

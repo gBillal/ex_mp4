@@ -14,8 +14,11 @@ defmodule ExMP4.Writer do
           ftyp_size: integer(),
           tracks: %{non_neg_integer() => Track.t()},
           next_track_id: integer(),
-          mdat_size: integer()
+          mdat_size: integer(),
+          fast_start: boolean()
         }
+
+  @type new_opts :: [fast_start: boolean()]
 
   @mdat_header_size 8
   @chunk_duration 1_000
@@ -26,23 +29,27 @@ defmodule ExMP4.Writer do
     ftyp_size: 0,
     tracks: %{},
     next_track_id: 1,
-    mdat_size: 0
+    mdat_size: 0,
+    fast_start: false
   ]
 
   @doc """
   Create a new mp4 writer that writes to filesystem.
+
+  The following options can be provided:
+    * `fast_start` - Move the `moov` box to the beginning of the file. Defaults to: `false`
   """
-  @spec new(Path.t()) :: {:ok, t()} | {:error, reason :: any()}
-  def new(filepath) do
-    do_new_writer(filepath, ExMP4.Write.File)
+  @spec new(Path.t(), new_opts()) :: {:ok, t()} | {:error, reason :: any()}
+  def new(filepath, opts \\ []) do
+    do_new_writer(filepath, ExMP4.Write.File, opts)
   end
 
   @doc """
-  The same as `new/1`, but raises if it fails.
+  The same as `new/2`, but raises if it fails.
   """
-  @spec new!(Path.t()) :: t()
-  def new!(filepath) do
-    case new(filepath) do
+  @spec new!(Path.t(), new_opts()) :: t()
+  def new!(filepath, opts \\ []) do
+    case new(filepath, opts) do
       {:ok, writer} -> writer
       {:error, reason} -> raise "could not open writer: #{inspect(reason)}"
     end
@@ -118,23 +125,33 @@ defmodule ExMP4.Writer do
   Write the trailer and close the stream.
   """
   @spec write_trailer(t()) :: :ok
-  def write_trailer(writer) do
+  def write_trailer(%{fast_start: fast_start} = writer) do
     writer = Enum.reduce(Map.values(writer.tracks), writer, &flush_chunk(&2, &1))
     movie_box = writer.tracks |> Map.values() |> Enum.sort_by(& &1.id) |> Movie.assemble()
+
     after_ftyp = {:bof, writer.ftyp_size}
     mdat_total_size = @mdat_header_size + writer.mdat_size
 
-    write(writer, Container.serialize!(movie_box))
-    pwrite(writer, after_ftyp, <<mdat_total_size::32>>, false)
+    case fast_start do
+      false ->
+        write(writer, Container.serialize!(movie_box))
+        pwrite(writer, after_ftyp, <<mdat_total_size::32>>, false)
+
+      true ->
+        movie_box = Movie.adjust_chunk_offsets(movie_box)
+        pwrite(writer, after_ftyp, <<mdat_total_size::32>>, false)
+        pwrite(writer, after_ftyp, Container.serialize!(movie_box), true)
+    end
 
     close(writer)
   end
 
-  defp do_new_writer(input, writer_mod) do
+  defp do_new_writer(input, writer_mod, opts) do
     with {:ok, state} <- writer_mod.open(input) do
       writer = %__MODULE__{
         writer_mod: writer_mod,
-        writer_state: state
+        writer_state: state,
+        fast_start: Keyword.get(opts, :fast_start, false)
       }
 
       {:ok, writer}
