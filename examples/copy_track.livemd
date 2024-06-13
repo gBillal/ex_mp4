@@ -41,7 +41,8 @@ defmodule TrackCopier do
       |> Writer.add_track(video_track)
 
     Reader.stream(reader, tracks: [video_track.id])
-    |> Enum.reduce(writer, &Writer.write_sample(&2, track_id, &1))
+    |> Enum.map(&%{&1 | track_id: track_id})
+    |> Enum.into(writer)
     |> Writer.write_trailer()
   end
 end

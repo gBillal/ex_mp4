@@ -10,11 +10,11 @@ defmodule ExMP4.Sample do
           pts: non_neg_integer(),
           dts: non_neg_integer(),
           sync?: boolean(),
-          content: binary()
+          payload: binary() | nil
         }
 
-  @enforce_keys [:track_id, :pts, :dts, :content]
-  defstruct @enforce_keys ++ [sync?: false]
+  @enforce_keys [:track_id, :pts, :dts]
+  defstruct @enforce_keys ++ [payload: nil, sync?: false]
 
   @doc """
   Create a new sample

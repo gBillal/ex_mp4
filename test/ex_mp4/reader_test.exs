@@ -45,19 +45,19 @@ defmodule ExMP4.ReaderTest do
              pts: 0,
              dts: 0,
              sync?: true,
-             content: content
+             payload: payload
            } = Reader.read_sample(reader, 1, 0)
 
-    assert byte_size(content) == 751
+    assert byte_size(payload) == 751
 
-    assert %Sample{dts: 0, pts: 0, content: content} = Reader.read_sample(reader, 2, 0)
-    assert byte_size(content) == 179
+    assert %Sample{dts: 0, pts: 0, payload: payload} = Reader.read_sample(reader, 2, 0)
+    assert byte_size(payload) == 179
 
-    assert %Sample{dts: 1024, pts: 1024, content: content} = Reader.read_sample(reader, 2, 1)
-    assert byte_size(content) == 180
+    assert %Sample{dts: 1024, pts: 1024, payload: payload} = Reader.read_sample(reader, 2, 1)
+    assert byte_size(payload) == 180
 
-    assert %Sample{dts: 2048, pts: 2048, content: content} = Reader.read_sample(reader, 2, 2)
-    assert byte_size(content) == 160
+    assert %Sample{dts: 2048, pts: 2048, payload: payload} = Reader.read_sample(reader, 2, 2)
+    assert byte_size(payload) == 160
 
     assert :ok = Reader.close(reader)
   end

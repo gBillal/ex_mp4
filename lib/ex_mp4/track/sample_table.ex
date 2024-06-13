@@ -113,13 +113,13 @@ defmodule ExMP4.Track.SampleTable do
     end)
   end
 
-  defp do_store_sample(sample_table, %{content: payload}),
-    do:
-      Map.merge(sample_table, %{
-        chunk: [payload | sample_table.chunk],
-        sample_sizes: [byte_size(payload) | sample_table.sample_sizes],
-        sample_count: sample_table.sample_count + 1
-      })
+  defp do_store_sample(sample_table, %{payload: payload}) do
+    Map.merge(sample_table, %{
+      chunk: [payload | sample_table.chunk],
+      sample_sizes: [byte_size(payload) | sample_table.sample_sizes],
+      sample_count: sample_table.sample_count + 1
+    })
+  end
 
   defp maybe_store_first_dts(%{chunk: []} = sample_table, %Sample{dts: dts}),
     do: %{sample_table | chunk_first_dts: dts}

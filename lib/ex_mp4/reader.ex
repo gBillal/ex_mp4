@@ -137,7 +137,7 @@ defmodule ExMP4.Reader do
       dts: dts,
       pts: pts,
       sync?: sync?,
-      content: sample_data
+      payload: sample_data
     }
   end
 
@@ -178,7 +178,7 @@ defmodule ExMP4.Reader do
         dts: dts,
         pts: pts,
         sync?: sync?,
-        content: sample_data
+        payload: sample_data
       }
     end)
   end
