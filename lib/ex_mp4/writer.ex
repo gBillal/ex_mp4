@@ -105,9 +105,9 @@ defmodule ExMP4.Writer do
   @doc """
   Write a sample.
   """
-  @spec write_sample(t(), Track.id(), ExMP4.Sample.t()) :: t()
-  def write_sample(writer, track_id, sample) do
-    track = Track.store_sample(track!(writer, track_id), sample)
+  @spec write_sample(t(), ExMP4.Sample.t()) :: t()
+  def write_sample(writer, sample) do
+    track = Track.store_sample(track!(writer, sample.track_id), sample)
 
     chunk_duration =
       track
@@ -117,7 +117,7 @@ defmodule ExMP4.Writer do
     if chunk_duration >= @chunk_duration do
       flush_chunk(writer, track)
     else
-      put_in(writer, [:tracks, track_id], track)
+      put_in(writer, [:tracks, track.id], track)
     end
   end
 
@@ -186,4 +186,21 @@ defmodule ExMP4.Writer do
     do: writer.pwrite(state, loc, data, insert?)
 
   defp close(%__MODULE__{writer_mod: writer, writer_state: state}), do: writer.close(state)
+
+  defimpl Collectable do
+    def into(writer) do
+      collector = fn
+        writer, {:cont, sample} ->
+          ExMP4.Writer.write_sample(writer, sample)
+
+        writer, :done ->
+          writer
+
+        _writer, :halt ->
+          :ok
+      end
+
+      {writer, collector}
+    end
+  end
 end

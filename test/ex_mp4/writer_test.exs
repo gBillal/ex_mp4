@@ -42,17 +42,17 @@ defmodule ExMP4.WriterTest do
         dts: 0,
         pts: 2000,
         sync?: true,
-        content: @video_payload
+        payload: @video_payload
       )
 
     video_sample_2 =
-      Sample.new(track_id: video_track_id, dts: 1000, pts: 4000, content: @video_payload)
+      Sample.new(track_id: video_track_id, dts: 1000, pts: 4000, payload: @video_payload)
 
     video_sample_3 =
-      Sample.new(track_id: video_track_id, dts: 2000, pts: 5000, content: @video_payload)
+      Sample.new(track_id: video_track_id, dts: 2000, pts: 5000, payload: @video_payload)
 
     video_sample_4 =
-      Sample.new(track_id: video_track_id, dts: 3000, pts: 3000, content: @video_payload)
+      Sample.new(track_id: video_track_id, dts: 3000, pts: 3000, payload: @video_payload)
 
     video_sample_5 =
       Sample.new(
@@ -60,30 +60,30 @@ defmodule ExMP4.WriterTest do
         dts: 5000,
         pts: 7000,
         sync?: true,
-        content: @video_payload
+        payload: @video_payload
       )
 
-    audio_sample_1 = Sample.new(track_id: audio_track_id, dts: 0, pts: 0, content: @audio_payload)
+    audio_sample_1 = Sample.new(track_id: audio_track_id, dts: 0, pts: 0, payload: @audio_payload)
 
     audio_sample_2 =
-      Sample.new(track_id: audio_track_id, dts: 24_000, pts: 24_000, content: @audio_payload)
+      Sample.new(track_id: audio_track_id, dts: 24_000, pts: 24_000, payload: @audio_payload)
 
     audio_sample_3 =
-      Sample.new(track_id: audio_track_id, dts: 48_000, pts: 48_000, content: @audio_payload)
+      Sample.new(track_id: audio_track_id, dts: 48_000, pts: 48_000, payload: @audio_payload)
 
     audio_sample_4 =
-      Sample.new(track_id: audio_track_id, dts: 70_000, pts: 70_000, content: @audio_payload)
+      Sample.new(track_id: audio_track_id, dts: 70_000, pts: 70_000, payload: @audio_payload)
 
     assert :ok =
-             Writer.write_sample(writer, video_track_id, video_sample_1)
-             |> Writer.write_sample(video_track_id, video_sample_2)
-             |> Writer.write_sample(video_track_id, video_sample_3)
-             |> Writer.write_sample(video_track_id, video_sample_4)
-             |> Writer.write_sample(video_track_id, video_sample_5)
-             |> Writer.write_sample(audio_track_id, audio_sample_1)
-             |> Writer.write_sample(audio_track_id, audio_sample_2)
-             |> Writer.write_sample(audio_track_id, audio_sample_3)
-             |> Writer.write_sample(audio_track_id, audio_sample_4)
+             Writer.write_sample(writer, video_sample_1)
+             |> Writer.write_sample(video_sample_2)
+             |> Writer.write_sample(video_sample_3)
+             |> Writer.write_sample(video_sample_4)
+             |> Writer.write_sample(video_sample_5)
+             |> Writer.write_sample(audio_sample_1)
+             |> Writer.write_sample(audio_sample_2)
+             |> Writer.write_sample(audio_sample_3)
+             |> Writer.write_sample(audio_sample_4)
              |> Writer.write_trailer()
 
     assert {:ok, reader} = ExMP4.Reader.new(filepath)
@@ -133,14 +133,14 @@ defmodule ExMP4.WriterTest do
                dts: dts,
                pts: pts,
                sync?: sync?,
-               content: @video_payload
+               payload: @video_payload
              } == ExMP4.Reader.read_sample(reader, video_track.id, idx)
     end
 
     expected_result = [{0, 2000}, {24_000, 24_000}, {48_000, 48_000}, {70_000, 70_000}]
 
     for {idx, {dts, pts}} <- Enum.with_index(expected_result) do
-      assert %Sample{dts: ^dts, pts: ^pts, content: @audio_payload} =
+      assert %Sample{dts: ^dts, pts: ^pts, payload: @audio_payload} =
                ExMP4.Reader.read_sample(reader, audio_track.id, idx)
     end
 
@@ -160,12 +160,12 @@ defmodule ExMP4.WriterTest do
         dts: 0,
         pts: 2000,
         sync?: true,
-        content: @video_payload
+        payload: @video_payload
       )
 
     assert :ok =
              writer
-             |> Writer.write_sample(video_track_id, video_sample_1)
+             |> Writer.write_sample(video_sample_1)
              |> Writer.write_trailer()
 
     assert {:ok, data} = File.read(filepath)
