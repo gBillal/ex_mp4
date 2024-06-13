@@ -146,4 +146,29 @@ defmodule ExMP4.WriterTest do
 
     assert :ok = ExMP4.Reader.close(reader)
   end
+
+  test "fast start", %{tmp_dir: tmp_dir} do
+    filepath = Path.join(tmp_dir, "out.mp4")
+    assert {:ok, writer} = Writer.new(filepath, fast_start: true)
+
+    writer = Writer.write_header(writer)
+    {video_track_id, writer} = Writer.add_track(writer, @video_track)
+
+    video_sample_1 =
+      Sample.new(
+        track_id: video_track_id,
+        dts: 0,
+        pts: 2000,
+        sync?: true,
+        content: @video_payload
+      )
+
+    assert :ok =
+             writer
+             |> Writer.write_sample(video_track_id, video_sample_1)
+             |> Writer.write_trailer()
+
+    assert {:ok, data} = File.read(filepath)
+    assert <<_ftyp::binary-size(32), _moov_size::binary-size(4), "moov", _rest::binary>> = data
+  end
 end

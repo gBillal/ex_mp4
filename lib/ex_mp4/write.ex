@@ -20,14 +20,7 @@ defmodule ExMP4.Write do
   @callback write(state(), data :: iodata()) :: :ok
 
   @doc """
-  Seek to the provided position in the stream
-  """
-  @callback seek(state(), location(), insert? :: boolean()) :: :ok
-
-  @doc """
-  Seek and write from the input stream.
-
-  Some stream may have optimised way of seeking and reading at the same time as the case for `:file`
+  Seek and write to the stream.
   """
   @callback pwrite(state(), location(), data :: iodata(), insert? :: boolean()) :: :ok
 
@@ -35,20 +28,4 @@ defmodule ExMP4.Write do
   Close the input stream.
   """
   @callback close(state()) :: :ok
-
-  @optional_callbacks pwrite: 4
-
-  defmacro __using__(_opts) do
-    quote location: :keep do
-      @behaviour ExMP4.Write
-
-      @doc false
-      def pwrite(state, location, data, insert?) do
-        :ok = seek(state, location, insert?)
-        write(state, data)
-      end
-
-      defoverridable pwrite: 4
-    end
-  end
 end
