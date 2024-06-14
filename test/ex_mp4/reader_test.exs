@@ -14,6 +14,9 @@ defmodule ExMP4.ReaderTest do
     assert reader.duration == 62
     assert reader.timescale == 1_000
 
+    assert Reader.duration(reader, 500) == 31
+    assert Reader.duration(reader, :microsecond) == 62_000
+
     assert [video_track, audio_track] = Reader.tracks(reader)
 
     assert %Track{
