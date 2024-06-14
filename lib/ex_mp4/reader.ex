@@ -114,8 +114,10 @@ defmodule ExMP4.Reader do
   @doc """
   Get the duration of the stream.
   """
-  @spec duration(t()) :: non_neg_integer()
-  def duration(%__MODULE__{duration: duration}), do: duration
+  @spec duration(t(), ExMP4.Helper.timescale()) :: non_neg_integer()
+  def duration(%__MODULE__{} = reader, unit_or_timescale \\ :millisecond) do
+    ExMP4.Helper.timescalify(reader.duration, reader.timescale, unit_or_timescale)
+  end
 
   @doc """
   Read a sample from the specified track.

@@ -1,13 +1,14 @@
 defmodule ExMP4.Track.SampleTable do
-  @moduledoc """
-  A module that defines a structure and functions allowing to store samples,
-  assemble them into chunks and flush when needed. Its public functions take
-  care of recording information required to build a sample table.
+  @moduledoc false
 
-  For performance reasons, the module uses prepends when storing information
-  about new samples. To compensate for it, use `#{inspect(&__MODULE__.reverse/1)}`
-  when it's known that no more samples will be stored.
-  """
+  # A module that defines a structure and functions allowing to store samples,
+  # assemble them into chunks and flush when needed. Its public functions take
+  # care of recording information required to build a sample table.
+
+  # For performance reasons, the module uses prepends when storing information
+  # about new samples. To compensate for it, use `#{inspect(&__MODULE__.reverse/1)}`
+  # when it's known that no more samples will be stored.
+
   alias ExMP4.Sample
 
   @type t :: %__MODULE__{
@@ -68,6 +69,10 @@ defmodule ExMP4.Track.SampleTable do
     |> maybe_store_sync_sample(sample)
     |> store_last_dts(sample)
   end
+
+  @spec total_size(t()) :: non_neg_integer()
+  def total_size(%{sample_sizes: [], sample_size: size, sample_count: count}), do: size * count
+  def total_size(%{sample_sizes: sample_sizes}), do: Enum.sum(sample_sizes)
 
   @spec chunk_duration(__MODULE__.t()) :: ExMP4.duration()
   def chunk_duration(%{chunk_first_dts: nil}), do: 0
