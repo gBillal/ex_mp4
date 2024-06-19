@@ -217,16 +217,8 @@ defmodule ExMP4.Track.SampleTable do
     def reduce(_sample_table, {:halt, acc}, _fun), do: {:halted, acc}
 
     def reduce(sample_table, {:cont, acc}, fun) do
-      element = %{
-        dts: 0,
-        pts: 0,
-        sync?: false,
-        sample_offset: 0,
-        sample_size: 0
-      }
-
       {sample_table, element} =
-        {sample_table, element}
+        {sample_table, %ExMP4.SampleMetadata{}}
         |> sample_timestamps()
         |> sync_sample()
         |> sample_size()
@@ -268,7 +260,7 @@ defmodule ExMP4.Track.SampleTable do
              ]}
         end
 
-      element = %{element | dts: duration, pts: duration + offset}
+      element = %{element | dts: duration, pts: duration + offset, duration: delta}
 
       sample_table = %{
         sample_table
@@ -294,12 +286,12 @@ defmodule ExMP4.Track.SampleTable do
     end
 
     defp sample_size({%{sample_sizes: []} = sample_table, element}) do
-      {sample_table, %{element | sample_size: sample_table.sample_size}}
+      {sample_table, %{element | size: sample_table.sample_size}}
     end
 
     defp sample_size({sample_table, element}) do
       [sample_size | sample_sizes] = sample_table.sample_sizes
-      {%{sample_table | sample_sizes: sample_sizes}, %{element | sample_size: sample_size}}
+      {%{sample_table | sample_sizes: sample_sizes}, %{element | size: sample_size}}
     end
 
     defp sample_offset({sample_table, element}) do
@@ -321,8 +313,8 @@ defmodule ExMP4.Track.SampleTable do
             {samples_per_chunk, chunk_offset, chunk_offsets, 1}
 
           samples_per_chunk ->
-            {samples_per_chunk, chunk_offset,
-             [chunk_offset + element.sample_size | chunk_offsets], index + 1}
+            {samples_per_chunk, chunk_offset, [chunk_offset + element.size | chunk_offsets],
+             index + 1}
         end
 
       samples_per_chunk =
@@ -341,7 +333,7 @@ defmodule ExMP4.Track.SampleTable do
           chunk_sample_index: index
       }
 
-      {sample_table, %{element | sample_offset: offset}}
+      {sample_table, %{element | offset: offset}}
     end
   end
 end
