@@ -1,7 +1,7 @@
 # Video Track Copier
 
 ```elixir
-Mix.install([{:ex_mp4, path: "."}, {:kino, "~> 0.11.0"}])
+Mix.install([:ex_mp4, {:kino, "~> 0.11.0"}])
 ```
 
 ## Track Copier
@@ -35,13 +35,14 @@ defmodule TrackCopier do
       |> Reader.tracks()
       |> Enum.find(&(&1.type == :video))
 
-    {track_id, writer} =
+    writer =
       writer
       |> Writer.write_header()
       |> Writer.add_track(video_track)
 
     Reader.stream(reader, tracks: [video_track.id])
-    |> Enum.map(&%{&1 | track_id: track_id})
+    |> Reader.samples(reader)
+    |> Stream.map(&%{&1 | track_id: 1})
     |> Enum.into(writer)
     |> Writer.write_trailer()
   end
@@ -61,7 +62,7 @@ form =
   )
 
 Kino.listen(form, fn %{data: data} ->
-  TrackCopier.copy(data.source_path, data.dest_path)
+  :ok = TrackCopier.copy(data.source_path, data.dest_path)
   IO.inspect("Done copying")
 end)
 

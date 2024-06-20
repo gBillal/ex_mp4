@@ -48,7 +48,7 @@ defmodule ExMP4.Reader do
 
   alias ExMP4.Container
   alias ExMP4.Container.Header
-  alias ExMP4.{Sample, Track}
+  alias ExMP4.{Helper, Sample, Track}
 
   @typedoc """
   Stream options.
@@ -114,9 +114,9 @@ defmodule ExMP4.Reader do
   @doc """
   Get the duration of the stream.
   """
-  @spec duration(t(), ExMP4.Helper.timescale()) :: non_neg_integer()
+  @spec duration(t(), Helper.timescale()) :: non_neg_integer()
   def duration(%__MODULE__{} = reader, unit_or_timescale \\ :millisecond) do
-    ExMP4.Helper.timescalify(reader.duration, reader.timescale, unit_or_timescale)
+    Helper.timescalify(reader.duration, reader.timescale, unit_or_timescale)
   end
 
   @doc """
@@ -131,32 +131,32 @@ defmodule ExMP4.Reader do
   @spec read_sample(t(), Track.id(), Sample.id()) :: Sample.t()
   def read_sample(%__MODULE__{} = reader, track_id, sample_id) do
     track = Map.fetch!(reader.tracks, track_id)
-    {{dts, pts}, sync?, sample_size, sample_offset} = Track.sample_metadata(track, sample_id)
-    sample_data = reader.reader_mod.pread(reader.reader_state, sample_offset, sample_size)
+    metadata = Track.sample_metadata(track, sample_id)
+    sample_data = reader.reader_mod.pread(reader.reader_state, metadata.offset, metadata.size)
 
     %Sample{
       track_id: track_id,
-      dts: dts,
-      pts: pts,
-      sync?: sync?,
+      dts: metadata.dts,
+      pts: metadata.pts,
+      sync?: metadata.sync?,
       payload: sample_data
     }
   end
 
   @doc """
-  Stream the samples.
+  Stream the samples' metadata.
 
   The samples are retrieved ordered by their `dts` value.
   """
   @spec stream(t(), stream_opts()) :: Enumerable.t()
   def stream(reader, opts \\ []) do
-    tracks = Keyword.get(opts, :tracks, Map.keys(reader.tracks))
     step = fn element, _acc -> {:suspend, element} end
 
     acc =
-      Enum.map(tracks, fn track_id ->
+      Keyword.get(opts, :tracks, Map.keys(reader.tracks))
+      |> Enum.map(fn track_id ->
         track = Map.fetch!(reader.tracks, track_id)
-        {track_id, nil, &Enumerable.reduce(track.sample_table, &1, step)}
+        {track, nil, &Enumerable.reduce(track.sample_table, &1, step)}
       end)
 
     Stream.resource(
@@ -164,56 +164,14 @@ defmodule ExMP4.Reader do
       &next_element(&1, []),
       fn _acc -> [] end
     )
-    |> Stream.map(fn {track_id, metadata} ->
-      %{
-        dts: dts,
-        pts: pts,
-        sync?: sync?,
-        sample_size: sample_size,
-        sample_offset: sample_offset
-      } = metadata
-
-      sample_data = reader.reader_mod.pread(reader.reader_state, sample_offset, sample_size)
-
-      %Sample{
-        track_id: track_id,
-        dts: dts,
-        pts: pts,
-        sync?: sync?,
-        payload: sample_data
-      }
-    end)
   end
 
-  defp next_element([], []), do: {:halt, []}
-
-  defp next_element([], acc) do
-    {track_id, selected_element, _fun} =
-      Enum.min_by(acc, &elem(&1, 1), &(&1.dts <= &1.dts and &1.pts <= &2.pts))
-
-    acc =
-      Enum.map(acc, fn {track_id, element, fun} ->
-        case element == selected_element do
-          true -> {track_id, nil, fun}
-          false -> {track_id, element, fun}
-        end
-      end)
-
-    {[{track_id, selected_element}], acc}
-  end
-
-  defp next_element([{track_id, nil, fun} | rest], acc) do
-    case fun.({:cont, nil}) do
-      {:suspended, element, fun} ->
-        next_element(rest, [{track_id, element, fun} | acc])
-
-      {:done, _acc} ->
-        next_element(rest, acc)
-    end
-  end
-
-  defp next_element([head | rest], acc) do
-    next_element(rest, [head | acc])
+  @doc """
+  Get samples.
+  """
+  @spec samples(Enumerable.t(), t()) :: Enumerable.t()
+  def samples(metadata_stream, reader) do
+    Stream.map(metadata_stream, &do_get_sample(&1, reader))
   end
 
   @doc """
@@ -290,5 +248,52 @@ defmodule ExMP4.Reader do
     |> Keyword.get_values(:trak)
     |> Enum.map(&Track.from_trak_box/1)
     |> Map.new(&{&1.id, &1})
+  end
+
+  defp next_element([], []), do: {:halt, []}
+
+  defp next_element([], acc) do
+    {track, selected_element, _fun} =
+      Enum.min_by(acc, & &1, fn {track1, elem1, _fun}, {track2, elem2, _fun2} ->
+        dts1 = div(elem1.dts * 1_000, track1.timescale)
+        dts2 = div(elem2.dts * 1_000, track2.timescale)
+        dts1 <= dts2
+      end)
+
+    acc =
+      Enum.map(acc, fn {track, element, fun} ->
+        case element == selected_element do
+          true -> {track, nil, fun}
+          false -> {track, element, fun}
+        end
+      end)
+
+    {[%{selected_element | track_id: track.id}], acc}
+  end
+
+  defp next_element([{track, nil, fun} | rest], acc) do
+    case fun.({:cont, nil}) do
+      {:suspended, element, fun} ->
+        next_element(rest, [{track, element, fun} | acc])
+
+      {:done, _acc} ->
+        next_element(rest, acc)
+    end
+  end
+
+  defp next_element([head | rest], acc) do
+    next_element(rest, [head | acc])
+  end
+
+  defp do_get_sample(metadata, %{reader_mod: reader, reader_state: state}) do
+    payload = reader.pread(state, metadata.offset, metadata.size)
+
+    %Sample{
+      track_id: metadata.track_id,
+      dts: metadata.dts,
+      pts: metadata.pts,
+      sync?: metadata.sync?,
+      payload: payload
+    }
   end
 end

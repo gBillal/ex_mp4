@@ -13,7 +13,6 @@ defmodule ExMP4.Writer do
           writer_state: any(),
           ftyp_size: integer(),
           tracks: %{non_neg_integer() => Track.t()},
-          next_track_id: integer(),
           mdat_size: integer(),
           fast_start: boolean()
         }
@@ -86,12 +85,13 @@ defmodule ExMP4.Writer do
   @doc """
   Add a new track.
 
-  A track is created by instantiating the public fields of `ExMP4.Track` except for `id`. The
-  id is assigned by the writer.
+  A track is created by instantiating the public fields of `ExMP4.Track`. The
+  id is assigned by the writer and it's equals to the index of the track starting
+  from `1`. The first track has an id `1`, the second `2`, ...etc.
   """
-  @spec add_track(t(), Track.t()) :: {Track.id(), t()}
+  @spec add_track(t(), Track.t()) :: t()
   def add_track(%__MODULE__{} = writer, track) do
-    {track_id, writer} = Map.get_and_update!(writer, :next_track_id, &{&1, &1 + 1})
+    track_id = map_size(writer.tracks) + 1
 
     track = %{
       track
@@ -99,7 +99,15 @@ defmodule ExMP4.Writer do
         sample_table: %Track.SampleTable{}
     }
 
-    {track_id, put_in(writer, [:tracks, track_id], track)}
+    put_in(writer, [:tracks, track_id], track)
+  end
+
+  @doc """
+  Add multiple tracks.
+  """
+  @spec add_tracks(t(), [Track.t()]) :: t()
+  def add_tracks(%__MODULE__{} = writer, tracks) do
+    Enum.reduce(tracks, writer, &add_track(&2, &1))
   end
 
   @doc """

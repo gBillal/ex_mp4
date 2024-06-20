@@ -33,46 +33,22 @@ defmodule ExMP4.WriterTest do
     assert {:ok, writer} = Writer.new(filepath)
 
     writer = Writer.write_header(writer, major_brand: "iso2", compatible_brands: ["isom", "mp41"])
-    {video_track_id, writer} = Writer.add_track(writer, @video_track)
-    {audio_track_id, writer} = Writer.add_track(writer, @audio_track)
+    writer = Writer.add_tracks(writer, [@video_track, @audio_track])
 
     video_sample_1 =
-      Sample.new(
-        track_id: video_track_id,
-        dts: 0,
-        pts: 2000,
-        sync?: true,
-        payload: @video_payload
-      )
+      Sample.new(track_id: 1, dts: 0, pts: 2000, sync?: true, payload: @video_payload)
 
-    video_sample_2 =
-      Sample.new(track_id: video_track_id, dts: 1000, pts: 4000, payload: @video_payload)
-
-    video_sample_3 =
-      Sample.new(track_id: video_track_id, dts: 2000, pts: 5000, payload: @video_payload)
-
-    video_sample_4 =
-      Sample.new(track_id: video_track_id, dts: 3000, pts: 3000, payload: @video_payload)
+    video_sample_2 = Sample.new(track_id: 1, dts: 1000, pts: 4000, payload: @video_payload)
+    video_sample_3 = Sample.new(track_id: 1, dts: 2000, pts: 5000, payload: @video_payload)
+    video_sample_4 = Sample.new(track_id: 1, dts: 3000, pts: 3000, payload: @video_payload)
 
     video_sample_5 =
-      Sample.new(
-        track_id: video_track_id,
-        dts: 5000,
-        pts: 7000,
-        sync?: true,
-        payload: @video_payload
-      )
+      Sample.new(track_id: 1, dts: 5000, pts: 7000, sync?: true, payload: @video_payload)
 
-    audio_sample_1 = Sample.new(track_id: audio_track_id, dts: 0, pts: 0, payload: @audio_payload)
-
-    audio_sample_2 =
-      Sample.new(track_id: audio_track_id, dts: 24_000, pts: 24_000, payload: @audio_payload)
-
-    audio_sample_3 =
-      Sample.new(track_id: audio_track_id, dts: 48_000, pts: 48_000, payload: @audio_payload)
-
-    audio_sample_4 =
-      Sample.new(track_id: audio_track_id, dts: 70_000, pts: 70_000, payload: @audio_payload)
+    audio_sample_1 = Sample.new(track_id: 2, dts: 0, pts: 0, payload: @audio_payload)
+    audio_sample_2 = Sample.new(track_id: 2, dts: 24_000, pts: 24_000, payload: @audio_payload)
+    audio_sample_3 = Sample.new(track_id: 2, dts: 48_000, pts: 48_000, payload: @audio_payload)
+    audio_sample_4 = Sample.new(track_id: 2, dts: 70_000, pts: 70_000, payload: @audio_payload)
 
     assert :ok =
              Writer.write_sample(writer, video_sample_1)
@@ -100,6 +76,7 @@ defmodule ExMP4.WriterTest do
     refute is_nil(audio_track)
 
     assert %{
+             id: 1,
              media: :h265,
              priv_data: <<0, 0, 1, 1, 2>>,
              width: 1080,
@@ -109,6 +86,7 @@ defmodule ExMP4.WriterTest do
            } = video_track
 
     assert %{
+             id: 2,
              media: :aac,
              priv_data: <<0, 0, 1, 3, 2>>,
              width: nil,
@@ -152,11 +130,11 @@ defmodule ExMP4.WriterTest do
     assert {:ok, writer} = Writer.new(filepath, fast_start: true)
 
     writer = Writer.write_header(writer)
-    {video_track_id, writer} = Writer.add_track(writer, @video_track)
+    writer = Writer.add_track(writer, @video_track)
 
     video_sample_1 =
       Sample.new(
-        track_id: video_track_id,
+        track_id: 1,
         dts: 0,
         pts: 2000,
         sync?: true,

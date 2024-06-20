@@ -1,0 +1,116 @@
+# Crop Video
+
+```elixir
+Mix.install([:ex_mp4, {:kino, "~> 0.11.0"}])
+```
+
+## Crop Video
+
+In this example, we'll crop an mp4 file by getting samples between two timestamps. The goal of this example is to show how to seek in a file.
+
+<!-- livebook:{"break_markdown":true} -->
+
+First let's add a module that'll do the seeking and writing. The process is as follows:
+
+### Seek to a keyframe
+
+Since we cannot just start writing video samples from an arbitrary position, we need first to lookup the nearest key frame before the requested time to ensure that the video track is decodable when playing.
+
+### Get track ranges
+
+From the last step, we'll get the start time and end time in the video track timescale, we'll convert this times to each track timescale. So that yields a map with the track id as a key and a tuple of start time and end time as a value.
+
+### Stream the samples metadata
+
+Next we stream the samples' metadata and filter out samples that are not in the range calculated from the last step
+
+### Write the samples
+
+Last step would be to create a writer, add the tracks and store the filtered samples.
+
+```elixir
+defmodule VideoCropper do
+  require Logger
+
+  alias ExMP4.{Helper, Reader, Writer}
+
+  def crop(video_path, dest_path, start_time, duration) do
+    reader = Reader.new!(video_path)
+
+    {start_time, end_time, timescale} = get_real_range(reader, start_time, duration)
+    track_ranges = get_track_ranges(reader, start_time, end_time, timescale)
+
+    tracks = Reader.tracks(reader) |> Enum.sort_by(& &1.id)
+
+    writer =
+      Writer.new!(dest_path)
+      |> Writer.write_header()
+      |> Writer.add_tracks(tracks)
+
+    Reader.stream(reader)
+    |> Stream.filter(fn metadata ->
+      {s, e} = track_ranges[metadata.track_id]
+      metadata.dts >= s and metadata.dts <= e
+    end)
+    |> Reader.samples(reader)
+    |> Enum.into(writer)
+    |> Writer.write_trailer()
+  end
+
+  defp get_real_range(reader, start_time, duration) do
+    video_track =
+      reader
+      |> Reader.tracks()
+      |> Enum.find(&(&1.type == :video))
+
+    end_time = Helper.timescalify(start_time + duration, :second, video_track.timescale)
+    start_time = Helper.timescalify(start_time, :second, video_track.timescale)
+
+    # fetch the starting point
+    start_time =
+      Reader.stream(reader, tracks: [video_track.id])
+      |> Enum.reduce_while(0, fn metadata, offset ->
+        cond do
+          metadata.dts >= start_time -> {:halt, offset}
+          metadata.sync? -> {:cont, metadata.dts}
+          true -> {:cont, offset}
+        end
+      end)
+
+    {start_time, end_time, video_track.timescale}
+  end
+
+  defp get_track_ranges(reader, start_time, end_time, timescale) do
+    Reader.tracks(reader)
+    |> Enum.map(fn track ->
+      range_start = Helper.timescalify(start_time, timescale, track.timescale)
+      range_end = Helper.timescalify(end_time, timescale, track.timescale)
+
+      {track.id, {range_start, range_end}}
+    end)
+    |> Map.new()
+  end
+end
+```
+
+Next we create a form that accepts the source path and the destination of the new MP4 file.
+
+```elixir
+form =
+  Kino.Control.form(
+    [
+      source_path: Kino.Input.text("Source Path"),
+      dest_path: Kino.Input.text("Destination Path"),
+      start_time: Kino.Input.number("Start time", default: 5),
+      duration: Kino.Input.number("Start time", default: 10)
+    ],
+    submit: "Submit"
+  )
+
+Kino.listen(form, fn %{data: data} ->
+  :ok = VideoCropper.crop(data.source_path, data.dest_path, data.start_time, data.duration)
+  IO.inspect("Done cropping")
+end)
+
+form
+```
