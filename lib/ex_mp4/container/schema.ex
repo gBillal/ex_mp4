@@ -362,7 +362,7 @@ defmodule ExMP4.Container.Schema do
                           default_sample_description_index: :uint32,
                           default_sample_duration: :uint32,
                           default_sample_size: :uint32,
-                          default_sample_flags: :uint32
+                          default_sample_flags: :bin32
                         ]
                   ]
                 ]
@@ -445,6 +445,7 @@ defmodule ExMP4.Container.Schema do
                         [
                           sample_count: :uint32,
                           data_offset: {:uint32, when: {:fo_flags, mask: 0x01}},
+                          first_sample_flags: {:bin32, when: {:fo_flags, mask: 0x04}},
                           samples:
                             {:list,
                              [

@@ -6,17 +6,21 @@ defmodule ExMP4.Track.FragmentedSampleTable.Moof do
 
     @type t :: %__MODULE__{
             sample_count: non_neg_integer(),
+            first_sample_flags: binary(),
             sample_sizes: [pos_integer()],
             sample_durations: [pos_integer()],
             sync_samples: binary(),
-            sample_composition_offsets: [pos_integer()]
+            sample_composition_offsets: [pos_integer()],
+            first_sample?: boolean()
           }
 
     defstruct sample_count: 0,
+              first_sample_flags: nil,
               sample_sizes: nil,
               sample_durations: nil,
               sync_samples: nil,
-              sample_composition_offsets: nil
+              sample_composition_offsets: nil,
+              first_sample?: true
 
     @spec sample_metadata(t()) :: {t(), tuple()}
     def sample_metadata(run) do
@@ -38,6 +42,10 @@ defmodule ExMP4.Track.FragmentedSampleTable.Moof do
 
     defp sample_size(%{sample_sizes: [size | rest]} = run),
       do: {%{run | sample_sizes: rest}, size}
+
+    defp sync?(%{first_sample_flags: <<sync::1, _rest::bitstring>>, first_sample?: true} = run) do
+      {%{run | first_sample?: false}, sync == 0}
+    end
 
     defp sync?(%{sync_samples: <<sync::1, rest::bitstring>>} = run) do
       {%{run | sync_samples: rest}, sync == 0}
@@ -116,14 +124,16 @@ defmodule ExMP4.Track.FragmentedSampleTable.Moof do
   @spec add_run(
           t(),
           pos_integer(),
+          binary() | nil,
           [pos_integer()] | nil,
           [pos_integer()] | nil,
           binary() | nil,
           [pos_integer()] | nil
         ) :: t()
-  def add_run(moof, count, durations, sizes, sync, composition_offsets) do
+  def add_run(moof, count, first_sample_flags, durations, sizes, sync, composition_offsets) do
     run = %Run{
       sample_count: count,
+      first_sample_flags: first_sample_flags,
       sample_durations: durations,
       sample_sizes: sizes,
       sync_samples: sync,

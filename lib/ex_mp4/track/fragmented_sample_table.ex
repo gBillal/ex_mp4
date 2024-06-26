@@ -6,7 +6,7 @@ defmodule ExMP4.Track.FragmentedSampleTable do
   @type t :: %__MODULE__{
           default_sample_duration: integer(),
           default_sample_size: integer(),
-          default_sample_flags: integer(),
+          default_sample_flags: binary(),
           default_sample_description_id: integer(),
           moofs: [Moof.t()],
           duration: integer(),
@@ -16,7 +16,7 @@ defmodule ExMP4.Track.FragmentedSampleTable do
 
   defstruct default_sample_duration: 0,
             default_sample_size: 0,
-            default_sample_flags: 0,
+            default_sample_flags: nil,
             default_sample_description_id: 0,
             moofs: [],
             duration: 0,
@@ -69,6 +69,7 @@ defmodule ExMP4.Track.FragmentedSampleTable do
         Moof.add_run(
           moof,
           fields.sample_count,
+          fields.first_sample_flags,
           empty_list_to_nil(Enum.reverse(durations)),
           empty_list_to_nil(Enum.reverse(sizes)),
           flags,
