@@ -19,11 +19,12 @@ defmodule ExMP4.Box.Movie do
 
   @movie_timescale 1000
 
-  @spec assemble([Track.t()], Container.t()) :: Container.t()
-  def assemble(tracks, extensions \\ []) do
+  @spec assemble([Track.t()], Keyword.t()) :: Container.t()
+  @spec assemble([Track.t()], Keyword.t(), Container.t()) :: Container.t()
+  def assemble(tracks, header_opts, extensions \\ []) do
     tracks = Enum.map(tracks, &Track.finalize(&1, @movie_timescale))
 
-    header = movie_header(tracks)
+    header = movie_header(tracks, header_opts)
     track_boxes = Enum.flat_map(tracks, &TrackBox.assemble/1)
 
     [moov: %{children: header ++ track_boxes ++ extensions, fields: %{}}]
@@ -55,14 +56,14 @@ defmodule ExMP4.Box.Movie do
     |> then(&[moov: %{children: &1, fields: %{}}])
   end
 
-  defp movie_header(tracks) do
+  defp movie_header(tracks, opts) do
     longest_track = Enum.max_by(tracks, & &1.movie_duration)
 
     [
       mvhd: %{
         children: [],
         fields: %{
-          creation_time: 0,
+          creation_time: DateTime.diff(opts[:creation_time], ExMP4.base_date()),
           duration: longest_track.movie_duration,
           flags: 0,
           matrix_value_A: {1, 0},
@@ -74,7 +75,7 @@ defmodule ExMP4.Box.Movie do
           matrix_value_W: {1, 0},
           matrix_value_X: {0, 0},
           matrix_value_Y: {0, 0},
-          modification_time: 0,
+          modification_time: DateTime.diff(opts[:modification_time], ExMP4.base_date()),
           next_track_id: length(tracks) + 1,
           quicktime_current_time: 0,
           quicktime_poster_time: 0,

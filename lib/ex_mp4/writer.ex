@@ -135,9 +135,21 @@ defmodule ExMP4.Writer do
   Write the trailer and close the stream.
   """
   @spec write_trailer(t()) :: :ok
-  def write_trailer(%{fast_start: fast_start} = writer) do
+  def write_trailer(%{fast_start: fast_start} = writer, opts \\ []) do
+    movie_header_opts =
+      Keyword.validate!(opts,
+        creation_time: DateTime.utc_now(:second),
+        modification_time: DateTime.utc_now(:second)
+      )
+      |> Enum.sort()
+
     writer = Enum.reduce(Map.values(writer.tracks), writer, &flush_chunk(&2, &1))
-    movie_box = writer.tracks |> Map.values() |> Enum.sort_by(& &1.id) |> Movie.assemble()
+
+    movie_box =
+      writer.tracks
+      |> Map.values()
+      |> Enum.sort_by(& &1.id)
+      |> Movie.assemble(movie_header_opts)
 
     after_ftyp = {:bof, writer.ftyp_size}
     mdat_total_size = @mdat_header_size + writer.mdat_size
