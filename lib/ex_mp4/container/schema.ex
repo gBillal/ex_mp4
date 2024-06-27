@@ -362,7 +362,7 @@ defmodule ExMP4.Container.Schema do
                           default_sample_description_index: :uint32,
                           default_sample_duration: :uint32,
                           default_sample_size: :uint32,
-                          default_sample_flags: :uint32
+                          default_sample_flags: :bin32
                         ]
                   ]
                 ]
@@ -422,9 +422,12 @@ defmodule ExMP4.Container.Schema do
                       @full_box ++
                         [
                           track_id: :uint32,
-                          default_sample_duration: :uint32,
-                          default_sample_size: :uint32,
-                          default_sample_flags: :uint32
+                          base_data_offset: :uint64,
+                          default_sample_description_index:
+                            {:uint32, when: {:fo_flags, mask: 0x02}},
+                          default_sample_duration: {:uint32, when: {:fo_flags, mask: 0x08}},
+                          default_sample_size: {:uint32, when: {:fo_flags, mask: 0x10}},
+                          default_sample_flags: {:uint32, when: {:fo_flags, mask: 0x20}}
                         ]
                   ],
                   tfdt: [
@@ -441,13 +444,14 @@ defmodule ExMP4.Container.Schema do
                       @full_box ++
                         [
                           sample_count: :uint32,
-                          data_offset: :int32,
+                          data_offset: {:uint32, when: {:fo_flags, mask: 0x01}},
+                          first_sample_flags: {:bin32, when: {:fo_flags, mask: 0x04}},
                           samples:
                             {:list,
                              [
-                               sample_duration: :uint32,
-                               sample_size: :uint32,
-                               sample_flags: :bin32,
+                               sample_duration: {:uint32, when: {:fo_flags, mask: 0x100}},
+                               sample_size: {:uint32, when: {:fo_flags, mask: 0x200}},
+                               sample_flags: {:bin32, when: {:fo_flags, mask: 0x400}},
                                sample_composition_offset:
                                  {:uint32, when: {:fo_flags, mask: 0x800}}
                              ]}

@@ -15,13 +15,13 @@ defmodule ExMP4.SampleMetadata do
     * `offset` - The offset of the sample in the container.
   """
   @type t :: %__MODULE__{
-          track_id: integer(),
-          dts: pos_integer(),
-          pts: pos_integer(),
+          track_id: integer() | nil,
+          dts: integer(),
+          pts: integer(),
           sync?: boolean(),
-          duration: pos_integer(),
-          size: pos_integer(),
-          offset: pos_integer()
+          duration: integer(),
+          size: integer(),
+          offset: integer()
         }
 
   defstruct track_id: nil, dts: 0, pts: 0, sync?: false, duration: 0, size: 0, offset: 0

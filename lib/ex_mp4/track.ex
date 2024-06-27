@@ -4,9 +4,10 @@ defmodule ExMP4.Track do
   """
 
   alias ExMP4.{Container, Helper}
-  alias ExMP4.Track.SampleTable
+  alias ExMP4.Track.{FragmentedSampleTable, SampleTable}
 
   @type id :: non_neg_integer()
+  @type box :: %{fields: map(), children: Container.t()}
 
   @typedoc """
   Struct describing an mp4 track.
@@ -45,6 +46,7 @@ defmodule ExMP4.Track do
 
           # private fields
           sample_table: SampleTable.t() | nil,
+          frag_sample_table: FragmentedSampleTable.t() | nil,
           movie_duration: integer() | nil
         }
 
@@ -60,14 +62,42 @@ defmodule ExMP4.Track do
     :channels,
     :sample_count,
     :sample_table,
+    :frag_sample_table,
     :movie_duration,
     priv_data: <<>>,
     timescale: 1000
   ]
 
   @doc false
-  @spec from_trak_box(Container.t()) :: t()
+  @spec from_trak_box(box()) :: t()
   def from_trak_box(trak), do: ExMP4.Box.Track.unpack(trak)
+
+  @doc false
+  @spec from_trex(t(), box()) :: t()
+  def from_trex(track, %{fields: fields}) do
+    %{
+      track
+      | frag_sample_table: %FragmentedSampleTable{
+          default_sample_description_id: fields.default_sample_duration,
+          default_sample_duration: fields.default_sample_duration,
+          default_sample_flags: fields.default_sample_flags,
+          default_sample_size: fields.default_sample_size
+        }
+    }
+  end
+
+  @doc false
+  @spec from_moof(t(), box(), [box()]) :: t()
+  def from_moof(track, tfhd, truns) do
+    sample_table = FragmentedSampleTable.add_moof(track.frag_sample_table, tfhd, truns)
+
+    %{
+      track
+      | frag_sample_table: sample_table,
+        duration: track.duration + sample_table.duration,
+        sample_count: track.sample_count + sample_table.sample_count
+    }
+  end
 
   @doc """
   Create a new track
@@ -89,7 +119,12 @@ defmodule ExMP4.Track do
   """
   @spec bitrate(t()) :: non_neg_integer()
   def bitrate(track) do
-    total_size = SampleTable.total_size(track.sample_table)
+    total_size =
+      case track do
+        %{frag_sample_table: nil} -> SampleTable.total_size(track.sample_table)
+        _track -> FragmentedSampleTable.total_size(track.frag_sample_table)
+      end
+
     div(total_size * 1000 * 8, duration(track, :millisecond))
   end
 
@@ -102,12 +137,6 @@ defmodule ExMP4.Track do
   end
 
   def fps(_track), do: 0
-
-  @doc false
-  @spec sample_metadata(t(), non_neg_integer()) :: ExMP4.SampleMetadata.t()
-  def sample_metadata(%{sample_table: sample_table}, sample_id) do
-    Enum.at(sample_table, sample_id)
-  end
 
   @doc false
   @spec store_sample(t(), ExMP4.Sample.t()) :: t()
@@ -146,5 +175,42 @@ defmodule ExMP4.Track do
       | duration: Helper.timescalify(duration, track.timescale, track.timescale),
         movie_duration: Helper.timescalify(duration, track.timescale, movie_timescale)
     }
+  end
+
+  defimpl Enumerable do
+    def reduce(track, {:suspend, acc}, fun) do
+      {:suspended, acc, &reduce(track, &1, fun)}
+    end
+
+    def reduce(_track, {:halt, acc}, _fun), do: {:halted, acc}
+
+    # progressive file
+    def reduce(%{frag_sample_table: nil, sample_table: table}, {:cont, acc}, _fun)
+        when table.sample_index > table.sample_count do
+      {:done, acc}
+    end
+
+    def reduce(%{frag_sample_table: nil} = track, {:cont, acc}, fun) do
+      {sample_table, sample_metadata} = SampleTable.next_sample(track.sample_table)
+      sample_metadata = %{sample_metadata | track_id: track.id}
+      reduce(%{track | sample_table: sample_table}, fun.(sample_metadata, acc), fun)
+    end
+
+    # fragmented file
+    def reduce(%{frag_sample_table: %{moofs: []}}, {:cont, acc}, _fun) do
+      {:done, acc}
+    end
+
+    def reduce(track, {:cont, acc}, fun) do
+      {frag_table, sample_metadata} = FragmentedSampleTable.next_sample(track.frag_sample_table)
+      sample_metadata = %{sample_metadata | track_id: track.id}
+      reduce(%{track | frag_sample_table: frag_table}, fun.(sample_metadata, acc), fun)
+    end
+
+    def count(%{sample_count: count}), do: {:ok, count}
+
+    def member?(_enumerable, _element), do: {:error, __MODULE__}
+
+    def slice(_enumerable), do: {:error, __MODULE__}
   end
 end

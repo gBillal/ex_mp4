@@ -64,4 +64,60 @@ defmodule ExMP4.ReaderTest do
 
     assert :ok = Reader.close(reader)
   end
+
+  test "read fragmented mp4 file" do
+    assert {:ok, reader} = Reader.new("test/fixtures/fragmented.mp4")
+
+    assert reader.major_brand == "isom"
+    assert reader.major_brand_version == 1
+    assert reader.compatible_brands == ["isom", "iso2", "avc1", "mp41"]
+    assert reader.duration == 107
+    assert reader.timescale == 1_000
+
+    assert Reader.duration(reader, 500) == 54
+    assert Reader.duration(reader, :microsecond) == 107_000
+
+    assert [video_track, audio_track] = Reader.tracks(reader) |> Enum.sort_by(& &1.id)
+
+    assert %Track{
+             id: 1,
+             type: :video,
+             media: :h264,
+             media_tag: :avc1,
+             duration: 3,
+             timescale: 30,
+             width: 480,
+             height: 270,
+             sample_count: 3
+           } =
+             video_track
+
+    assert %Track{
+             id: 2,
+             type: :audio,
+             media: :aac,
+             duration: 5_120,
+             timescale: 48_000,
+             sample_count: 5,
+             sample_rate: 48_000,
+             channels: 2
+           } =
+             audio_track
+
+    samples = for id <- 0..2, do: Reader.read_sample(reader, 1, id)
+
+    assert Enum.map(samples, & &1.dts) == [0, 1, 2]
+    assert Enum.map(samples, & &1.pts) == [0, 1, 2]
+    assert Enum.map(samples, & &1.sync?) == [true, false, false]
+    assert Enum.map(samples, &byte_size(&1.payload)) == [13_740, 276, 219]
+
+    samples = for id <- 0..4, do: Reader.read_sample(reader, 2, id)
+
+    assert Enum.map(samples, & &1.dts) == [0, 1024, 2048, 3072, 4096]
+    assert Enum.map(samples, & &1.pts) == [0, 1024, 2048, 3072, 4096]
+    assert Enum.all?(Enum.map(samples, & &1.sync?))
+    assert Enum.map(samples, &byte_size(&1.payload)) == [299, 298, 299, 299, 298]
+
+    assert :ok = Reader.close(reader)
+  end
 end

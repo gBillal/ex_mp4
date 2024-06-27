@@ -96,7 +96,9 @@ defmodule ExMP4.Writer do
     track = %{
       track
       | id: track_id,
-        sample_table: %Track.SampleTable{}
+        sample_table: %Track.SampleTable{},
+        frag_sample_table: nil,
+        movie_duration: 0
     }
 
     put_in(writer, [:tracks, track_id], track)
