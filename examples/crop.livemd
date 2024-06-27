@@ -102,7 +102,7 @@ form =
       source_path: Kino.Input.text("Source Path"),
       dest_path: Kino.Input.text("Destination Path"),
       start_time: Kino.Input.number("Start time", default: 5),
-      duration: Kino.Input.number("Start time", default: 10)
+      duration: Kino.Input.number("Duration", default: 10)
     ],
     submit: "Submit"
   )
