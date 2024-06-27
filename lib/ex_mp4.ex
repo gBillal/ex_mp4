@@ -4,4 +4,6 @@ defmodule ExMP4 do
   @type timescale :: Ratio.t() | integer()
   @type offset :: integer()
   @type duration :: non_neg_integer()
+
+  @base_date ~U(1904-01-01 00:00:00Z)
 end

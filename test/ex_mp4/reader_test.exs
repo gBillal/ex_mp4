@@ -13,6 +13,8 @@ defmodule ExMP4.ReaderTest do
     assert reader.compatible_brands == ["isom", "iso2", "avc1", "mp41"]
     assert reader.duration == 62
     assert reader.timescale == 1_000
+    assert DateTime.compare(reader.creation_time, ExMP4.base_date()) == :eq
+    assert DateTime.compare(reader.modification_time, ExMP4.base_date()) == :eq
 
     assert Reader.duration(reader, 500) == 31
     assert Reader.duration(reader, :microsecond) == 62_000

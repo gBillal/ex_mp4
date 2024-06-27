@@ -7,6 +7,8 @@ defmodule ExMP4.Reader do
     * `duration` - The duration of the mp4 mapped in `:timescale` unit.
     * `timescale` - The timescale of the mp4.
     * `fragmented?` - The MP4 file is fragmented.
+    * `creation_time` - Creation date time of the presentation.
+    * `modification_time` - Modification date time of the presentation.
     * `major_brand`
     * `major_brand_version`
     * `compatible_brands`
@@ -68,6 +70,8 @@ defmodule ExMP4.Reader do
           major_brand_version: integer(),
           compatible_brands: [binary()],
           fragmented?: boolean(),
+          creation_time: DateTime.t(),
+          modification_time: DateTime.t(),
 
           # private fields
           reader_mod: module(),
@@ -82,6 +86,8 @@ defmodule ExMP4.Reader do
     :major_brand_version,
     :compatible_brands,
     :fragmented?,
+    :creation_time,
+    :modification_time,
     :reader_mod,
     :reader_state,
     :tracks
@@ -231,7 +237,9 @@ defmodule ExMP4.Reader do
     %{
       reader
       | duration: mvhd[:fields][:duration],
-        timescale: mvhd[:fields][:timescale]
+        timescale: mvhd[:fields][:timescale],
+        creation_time: DateTime.add(ExMP4.base_date(), mvhd[:fields][:creation_time]),
+        modification_time: DateTime.add(ExMP4.base_date(), mvhd[:fields][:modification_time])
     }
   end
 
