@@ -87,7 +87,7 @@ defmodule ExMP4.Box.SampleTable do
          children: [
            {content_tag,
             %{
-              content: track.priv_data
+              content: serialize_priv_data(track.media, track.priv_data)
             }},
            pasp: %{
              children: [],
@@ -116,7 +116,7 @@ defmodule ExMP4.Box.SampleTable do
         children: %{
           esds: %{
             fields: %{
-              elementary_stream_descriptor: track.priv_data,
+              elementary_stream_descriptor: serialize_priv_data(:aac, track.priv_data),
               flags: 0,
               version: 0
             }
@@ -200,6 +200,11 @@ defmodule ExMP4.Box.SampleTable do
 
   defp assemble_chunk_offsets(%{chunk_offsets: chunk_offsets}),
     do: Enum.map(chunk_offsets, &%{chunk_offset: &1})
+
+  defp serialize_priv_data(_codec, data) when is_binary(data), do: data
+  defp serialize_priv_data(:h264, dcr), do: ExMP4.Codec.Avc.serialize(dcr)
+  defp serialize_priv_data(:h265, dcr), do: ExMP4.Codec.Hevc.serialize(dcr)
+  defp serialize_priv_data(codec, _priv_data), do: raise("No serializer for #{codec}")
 
   @spec unpack(%{children: Container.t(), fields: map()}) :: SampleTable.t()
   def unpack(%{children: boxes}) do

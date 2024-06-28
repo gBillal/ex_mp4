@@ -1,7 +1,7 @@
 defmodule ExMP4.MixProject do
   use Mix.Project
 
-  @version "0.2.0"
+  @version "0.3.0"
   @github_url "https://github.com/gBillal/ex_mp4"
 
   def project do
@@ -60,6 +60,7 @@ defmodule ExMP4.MixProject do
       nest_modules_by_prefix: [
         ExMP4,
         ExMP4.Box,
+        ExMP4.Codec,
         ExMP4.Container,
         ExMP4.Read,
         ExMP4.Track,
