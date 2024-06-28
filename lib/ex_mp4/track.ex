@@ -35,7 +35,7 @@ defmodule ExMP4.Track do
           type: :video | :audio | :subtitle | :unknown,
           media: :h264 | :h265 | :aac | :opus | :unknown,
           media_tag: ExMP4.Container.box_name_t(),
-          priv_data: binary(),
+          priv_data: binary() | struct(),
           duration: non_neg_integer(),
           timescale: non_neg_integer(),
           width: non_neg_integer() | nil,

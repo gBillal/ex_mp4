@@ -193,7 +193,7 @@ defmodule ExMP4.Box.Track do
           | media: :h265,
             width: hevc[:fields][:width],
             height: hevc[:fields][:height],
-            priv_data: get_in(hevc, [:children, :hvcC, :content])
+            priv_data: parse_priv_data(:h265, get_in(hevc, [:children, :hvcC, :content]))
         }
 
       avc = stsd[:children][:avc1] || stsd[:children][:avc3] ->
@@ -202,14 +202,18 @@ defmodule ExMP4.Box.Track do
           | media: :h264,
             width: avc[:fields][:width],
             height: avc[:fields][:height],
-            priv_data: get_in(avc, [:children, :avcC, :content])
+            priv_data: parse_priv_data(:h264, get_in(avc, [:children, :avcC, :content]))
         }
 
       mp4a = stsd[:children][:mp4a] ->
         %{
           track
           | media: :aac,
-            priv_data: get_in(mp4a, [:children, :esds, :fields, :elementary_stream_descriptor]),
+            priv_data:
+              parse_priv_data(
+                :aac,
+                get_in(mp4a, [:children, :esds, :fields, :elementary_stream_descriptor])
+              ),
             channels: mp4a[:fields][:channel_count],
             sample_rate: elem(mp4a[:fields][:sample_rate], 0)
         }
@@ -225,4 +229,8 @@ defmodule ExMP4.Box.Track do
       | sample_count: Container.get_box_value(mdia, [:minf, :stbl, :stsz, :sample_count])
     }
   end
+
+  defp parse_priv_data(:h264, priv_data), do: ExMP4.Codec.Avc.parse(priv_data)
+  defp parse_priv_data(:h265, priv_data), do: ExMP4.Codec.Hevc.parse(priv_data)
+  defp parse_priv_data(_codec, priv_data), do: priv_data
 end

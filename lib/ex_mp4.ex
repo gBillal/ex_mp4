@@ -6,4 +6,7 @@ defmodule ExMP4 do
   @type duration :: non_neg_integer()
 
   @base_date ~U(1904-01-01 00:00:00Z)
+
+  def base_date(), do: @base_date
+
 end
