@@ -5,7 +5,7 @@ defmodule ExMP4.FragmentedWriter do
 
   alias ExMP4.Box.{FileType, Movie, MediaData, MovieExtendsBox, MovieFragment}
   alias ExMP4.{Container, Track}
-  alias ExMP4.Track.{Moof, SampleTable}
+  alias ExMP4.Track.{Fragment, SampleTable}
 
   @mdat_header_size 8
 
@@ -13,7 +13,7 @@ defmodule ExMP4.FragmentedWriter do
           writer_mod: module(),
           writer_state: term(),
           tracks: %{integer() => Track.t()},
-          current_fragments: %{integer() => Moof.t()},
+          current_fragments: %{integer() => Fragment.t()},
           fragments_data: %{integer() => [binary()]},
           sequence_number: integer(),
           base_data_offset: integer()
@@ -74,7 +74,7 @@ defmodule ExMP4.FragmentedWriter do
   def create_fragment(%{tracks: tracks} = writer) do
     track_ids = Map.keys(tracks)
 
-    fragments = Enum.reduce(track_ids, writer.current_fragments, &Map.put(&2, &1, Moof.new()))
+    fragments = Enum.reduce(track_ids, writer.current_fragments, &Map.put(&2, &1, Fragment.new()))
     data = Enum.reduce(track_ids, writer.fragments_data, &Map.put(&2, &1, []))
 
     %{
@@ -90,7 +90,7 @@ defmodule ExMP4.FragmentedWriter do
   """
   @spec write_sample(t(), ExMP4.Sample.t()) :: t()
   def write_sample(%{current_fragments: fragments} = writer, sample) do
-    fragments = Map.update!(fragments, sample.track_id, &Moof.store_sample(&1, sample))
+    fragments = Map.update!(fragments, sample.track_id, &Fragment.store_sample(&1, sample))
     fragments_data = Map.update!(writer.fragments_data, sample.track_id, &[sample.payload | &1])
 
     %{writer | current_fragments: fragments, fragments_data: fragments_data}
@@ -105,7 +105,7 @@ defmodule ExMP4.FragmentedWriter do
 
     fragments =
       Map.new(writer.current_fragments, fn {track_id, moof} ->
-        {track_id, Moof.flush(moof)}
+        {track_id, Fragment.flush(moof)}
       end)
 
     movie_fragment = MovieFragment.assemble(fragments, writer.sequence_number)
@@ -123,7 +123,7 @@ defmodule ExMP4.FragmentedWriter do
             |> Stream.map(&byte_size/1)
             |> Enum.sum()
 
-          moof = Moof.update_base_data_offset(fragments[track_id], base_data_offset)
+          moof = Fragment.update_base_data_offset(fragments[track_id], base_data_offset)
           base_offsets = Map.put(base_offsets, track_id, base_data_offset)
 
           tracks =

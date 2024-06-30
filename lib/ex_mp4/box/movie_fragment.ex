@@ -3,9 +3,9 @@ defmodule ExMP4.Box.MovieFragment do
   A module containing a function for assembling an MPEG-4 movie fragment (moof) box.
   """
   alias ExMP4.Container
-  alias ExMP4.Track.Moof
+  alias ExMP4.Track.Fragment
 
-  @spec assemble(%{(track_id :: integer()) => Moof.t()}, integer()) :: Container.t()
+  @spec assemble(%{(track_id :: integer()) => Fragment.t()}, integer()) :: Container.t()
   def assemble(fragments, sequence_number) do
     [
       moof: %{
