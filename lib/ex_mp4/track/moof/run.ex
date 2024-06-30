@@ -36,15 +36,18 @@ defmodule ExMP4.Track.Fragment.Run do
     sync = if sample.sync?, do: 0, else: 1
 
     durations =
-      case run.sample_durations do
-        [] ->
+      cond do
+        not is_nil(sample.duration) ->
+          [sample.duration | run.sample_durations]
+
+        Enum.empty?(run.sample_durations) ->
           [0]
 
-        [_duration | durations] ->
+        true ->
           # we update the duration of the last sample and
           # make the current sample have the same duration
-          dur = sample.dts - run.last_dts
-          [dur, dur | durations]
+          duration = sample.dts - run.last_dts
+          [duration, duration | tl(run.sample_durations)]
       end
 
     %{

@@ -43,13 +43,13 @@ defmodule ExMP4.Track.Fragment do
   end
 
   @spec store_sample(t(), ExMP4.Sample.t()) :: t()
-  def store_sample(%{current_run: run} = moof, sample) do
-    %{moof | current_run: Run.store_sample(run, sample)}
+  def store_sample(%{current_run: run} = fragment, sample) do
+    %{fragment | current_run: Run.store_sample(run, sample)}
   end
 
   @spec flush(t()) :: t()
-  def flush(moof) do
-    moof
+  def flush(fragment) do
+    fragment
     |> maybe_remove_composition_offsets()
     |> maybe_set_default_sample_duration()
     |> maybe_set_default_sample_size()
@@ -68,13 +68,13 @@ defmodule ExMP4.Track.Fragment do
   end
 
   @spec total_samples(t()) :: integer()
-  def total_samples(moof), do: Enum.reduce(moof.runs, 0, &(&1.sample_count + &2))
+  def total_samples(fragment), do: Enum.reduce(fragment.runs, 0, &(&1.sample_count + &2))
 
   @spec total_size(t(), integer() | nil) :: integer()
-  def total_size(moof, default_size) do
-    Enum.reduce(moof.runs, 0, fn
+  def total_size(fragment, default_size) do
+    Enum.reduce(fragment.runs, 0, fn
       %{sample_sizes: nil} = run, total ->
-        total + run.sample_count * (moof.default_sample_size || default_size)
+        total + run.sample_count * (fragment.default_sample_size || default_size)
 
       %{sample_sizes: sizes}, total ->
         total + Enum.sum(sizes)
@@ -82,26 +82,26 @@ defmodule ExMP4.Track.Fragment do
   end
 
   @spec update_base_data_offset(t(), integer()) :: t()
-  def update_base_data_offset(moof, offset), do: %{moof | base_data_offset: offset}
+  def update_base_data_offset(fragment, offset), do: %{fragment | base_data_offset: offset}
 
   @doc false
-  def sample_metadata(%__MODULE__{runs: [run | rest]} = moof) do
+  def sample_metadata(%__MODULE__{runs: [run | rest]} = fragment) do
     {run, {duration, size, sync?, composition_offset}} = Run.sample_metadata(run)
 
     metadata = {
-      duration || moof.default_sample_duration,
-      size || moof.default_sample_size,
-      sync? || sync?(moof.default_sample_flags),
+      duration || fragment.default_sample_duration,
+      size || fragment.default_sample_size,
+      sync? || sync?(fragment.default_sample_flags),
       composition_offset
     }
 
-    moof =
+    fragment =
       case run do
-        %{sample_count: 0} -> %{moof | runs: rest}
-        run -> %{moof | runs: [run | rest]}
+        %{sample_count: 0} -> %{fragment | runs: rest}
+        run -> %{fragment | runs: [run | rest]}
       end
 
-    {moof, metadata}
+    {fragment, metadata}
   end
 
   @spec add_run(t(), Run.t()) :: t()
@@ -112,34 +112,34 @@ defmodule ExMP4.Track.Fragment do
   defp sync?(<<_prefix::15, sync::1, _rest::binary>>), do: sync == 0
   defp sync?(_flags), do: false
 
-  defp maybe_remove_composition_offsets(%{current_run: run} = moof) do
+  defp maybe_remove_composition_offsets(%{current_run: run} = fragment) do
     run =
       if Enum.all?(run.sample_composition_offsets, &(&1 == 0)),
         do: %{run | sample_composition_offsets: nil},
         else: %{run | sample_composition_offsets: Enum.reverse(run.sample_composition_offsets)}
 
-    %{moof | current_run: run}
+    %{fragment | current_run: run}
   end
 
-  defp maybe_set_default_sample_duration(%{current_run: run} = moof) do
+  defp maybe_set_default_sample_duration(%{current_run: run} = fragment) do
     durations = Enum.reverse(run.sample_durations)
     duration = hd(durations)
 
     if Enum.all?(durations, &(&1 == duration)) do
-      %{moof | default_sample_duration: duration, current_run: %{run | sample_durations: nil}}
+      %{fragment | default_sample_duration: duration, current_run: %{run | sample_durations: nil}}
     else
-      %{moof | current_run: %{run | sample_durations: durations}}
+      %{fragment | current_run: %{run | sample_durations: durations}}
     end
   end
 
-  defp maybe_set_default_sample_size(%{current_run: run} = moof) do
+  defp maybe_set_default_sample_size(%{current_run: run} = fragment) do
     sizes = Enum.reverse(run.sample_sizes)
     size = hd(sizes)
 
     if Enum.all?(sizes, &(&1 == size)) do
-      %{moof | default_sample_size: size, current_run: %{run | sample_sizes: nil}}
+      %{fragment | default_sample_size: size, current_run: %{run | sample_sizes: nil}}
     else
-      %{moof | current_run: %{run | sample_sizes: sizes}}
+      %{fragment | current_run: %{run | sample_sizes: sizes}}
     end
   end
 end

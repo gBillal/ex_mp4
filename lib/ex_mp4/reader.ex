@@ -139,17 +139,10 @@ defmodule ExMP4.Reader do
   """
   @spec read_sample(t(), Track.id(), Sample.id()) :: Sample.t()
   def read_sample(%__MODULE__{} = reader, track_id, sample_id) do
-    track = Map.fetch!(reader.tracks, track_id)
-    metadata = Enum.at(track, sample_id)
-    sample_data = reader.reader_mod.pread(reader.reader_state, metadata.offset, metadata.size)
-
-    %Sample{
-      track_id: track_id,
-      dts: metadata.dts,
-      pts: metadata.pts,
-      sync?: metadata.sync?,
-      payload: sample_data
-    }
+    reader.tracks
+    |> Map.fetch!(track_id)
+    |> Enum.at(sample_id)
+    |> do_get_sample(reader)
   end
 
   @doc """
@@ -339,6 +332,7 @@ defmodule ExMP4.Reader do
       track_id: metadata.track_id,
       dts: metadata.dts,
       pts: metadata.pts,
+      duration: metadata.duration,
       sync?: metadata.sync?,
       payload: payload
     }
