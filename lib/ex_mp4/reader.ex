@@ -244,15 +244,12 @@ defmodule ExMP4.Reader do
   end
 
   defp do_parse_metadata(reader, %{name: :moof} = header, {data, rest}) do
-    box = read_and_parse_box(reader, header, {data, rest})
-
-    Keyword.get_values(box[:moof][:children], :traf)
-    |> Enum.map(fn traf ->
-      tfhd = traf[:children][:tfhd]
-      truns = Keyword.get_values(traf[:children], :trun)
-      Track.from_moof(reader.tracks[tfhd.fields.track_id], tfhd, truns)
+    reader
+    |> read_and_parse_box(header, {data, rest})
+    |> ExMP4.Box.MovieFragment.unpack()
+    |> Enum.reduce(reader.tracks, fn fragment, tracks ->
+      Map.update!(tracks, fragment.track_id, &Track.add_fragment(&1, fragment))
     end)
-    |> Map.new(&{&1.id, &1})
     |> then(&%{reader | tracks: &1, duration: max_duration(reader, Map.values(&1))})
   end
 

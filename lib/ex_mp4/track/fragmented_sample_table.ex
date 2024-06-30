@@ -52,38 +52,6 @@ defmodule ExMP4.Track.FragmentedSampleTable do
      }, sample_metadata}
   end
 
-  @spec add_fragment(t(), ExMP4.Track.box(), [ExMP4.Track.box()]) :: t()
-  def add_fragment(sample_table, %{fields: fields}, truns) do
-    moof =
-      fields
-      |> Map.drop([:flags, :version, :track_id])
-      |> Map.new(fn {key, value} -> {key, empty_list_to_nil(value)} end)
-      |> then(&struct!(Fragment, &1))
-
-    moof =
-      Enum.reduce(truns, moof, fn %{fields: fields}, moof ->
-        {durations, sizes, flags, composition_offsets} =
-          Enum.reduce(fields.samples, {[], [], <<>>, []}, &map_trun_sample/2)
-
-        Fragment.add_run(
-          moof,
-          fields.sample_count,
-          fields.first_sample_flags,
-          empty_list_to_nil(Enum.reverse(durations)),
-          empty_list_to_nil(Enum.reverse(sizes)),
-          flags,
-          empty_list_to_nil(Enum.reverse(composition_offsets))
-        )
-      end)
-
-    %{
-      sample_table
-      | moofs: sample_table.moofs ++ [moof],
-        duration: Fragment.duration(moof, sample_table.default_sample_duration),
-        sample_count: Fragment.total_samples(moof)
-    }
-  end
-
   @spec add_fragment(t(), Fragment.t()) :: t()
   def add_fragment(sample_table, fragment) do
     %{
@@ -101,25 +69,4 @@ defmodule ExMP4.Track.FragmentedSampleTable do
 
   defp sync?(<<_prefix::15, sync::1, _rest::binary>>), do: sync == 0
   defp sync?(_flags), do: false
-
-  defp map_trun_sample(sample, {durations, sizes, flags, composition_offsets}) do
-    flags =
-      case sample.sample_flags do
-        [] -> flags
-        <<_prefix::15, sync::1, _rest::binary>> -> <<flags::bitstring, sync::1>>
-      end
-
-    {
-      append_if_not_empty(sample.sample_duration, durations),
-      append_if_not_empty(sample.sample_size, sizes),
-      flags,
-      append_if_not_empty(sample.sample_composition_offset, composition_offsets)
-    }
-  end
-
-  defp empty_list_to_nil([]), do: nil
-  defp empty_list_to_nil(value), do: value
-
-  defp append_if_not_empty([], list), do: list
-  defp append_if_not_empty(value, list), do: [value | list]
 end

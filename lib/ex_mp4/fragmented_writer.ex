@@ -74,7 +74,9 @@ defmodule ExMP4.FragmentedWriter do
   def create_fragment(%{tracks: tracks} = writer) do
     track_ids = Map.keys(tracks)
 
-    fragments = Enum.reduce(track_ids, writer.current_fragments, &Map.put(&2, &1, Fragment.new()))
+    fragments =
+      Enum.reduce(track_ids, writer.current_fragments, &Map.put(&2, &1, Fragment.new(&1)))
+
     data = Enum.reduce(track_ids, writer.fragments_data, &Map.put(&2, &1, []))
 
     %{
@@ -108,7 +110,7 @@ defmodule ExMP4.FragmentedWriter do
         {track_id, Fragment.flush(moof)}
       end)
 
-    movie_fragment = MovieFragment.assemble(fragments, writer.sequence_number)
+    movie_fragment = MovieFragment.assemble(Map.values(fragments), writer.sequence_number)
     movie_fragment_size = Container.serialize!(movie_fragment) |> byte_size()
 
     base_data_offset = writer.base_data_offset + movie_fragment_size + @mdat_header_size

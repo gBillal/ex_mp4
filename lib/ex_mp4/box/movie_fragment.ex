@@ -5,7 +5,10 @@ defmodule ExMP4.Box.MovieFragment do
   alias ExMP4.Container
   alias ExMP4.Track.Fragment
 
-  @spec assemble(%{(track_id :: integer()) => Fragment.t()}, integer()) :: Container.t()
+  @doc """
+  Creates a new `moof` box from the `ExMP4.Track.Fragment` fragments.
+  """
+  @spec assemble([Fragment.t()], integer()) :: Container.t()
   def assemble(fragments, sequence_number) do
     [
       moof: %{
@@ -21,6 +24,29 @@ defmodule ExMP4.Box.MovieFragment do
           ] ++ Enum.flat_map(fragments, &track_fragment/1)
       }
     ]
+  end
+
+  @doc """
+  Unpacks a `moof` box into a list of `ExMP4.Track.Fragment` fragments.
+  """
+  @spec unpack(Container.t()) :: [Fragment.t()]
+  def unpack(moof) do
+    get_in(moof, [:moof, :children])
+    |> Keyword.get_values(:traf)
+    |> Enum.map(fn traf ->
+      tfhd = get_in(traf, [:children, :tfhd])
+
+      fragment =
+        tfhd.fields
+        |> Map.drop([:flags, :version])
+        |> Map.new(fn {key, value} -> {key, nullify(value)} end)
+        |> then(&struct!(Fragment, &1))
+
+      traf.children
+      |> Keyword.get_values(:trun)
+      |> Enum.map(&unpack_run/1)
+      |> Enum.reduce(fragment, &Fragment.add_run(&2, &1))
+    end)
   end
 
   @spec update_base_data_offsets(Container.t(), %{(track_id :: integer()) => offset :: integer()}) ::
@@ -44,7 +70,7 @@ defmodule ExMP4.Box.MovieFragment do
     |> then(&[moof: %{children: &1, fields: %{}}])
   end
 
-  defp track_fragment({track_id, fragment}) do
+  defp track_fragment(fragment) do
     [
       traf: %{
         children:
@@ -54,7 +80,7 @@ defmodule ExMP4.Box.MovieFragment do
               fields: %{
                 version: 0,
                 flags: traf_header_flags(fragment),
-                track_id: track_id,
+                track_id: fragment.track_id,
                 base_data_offset: fragment.base_data_offset,
                 default_sample_description_index: fragment.default_sample_description_index,
                 default_sample_duration: fragment.default_sample_duration,
@@ -132,4 +158,41 @@ defmodule ExMP4.Box.MovieFragment do
       }
     end)
   end
+
+  defp unpack_run(%{fields: fields}) do
+    {durations, sizes, flags, composition_offsets} =
+      Enum.reduce(
+        fields.samples,
+        {[], [], <<>>, []},
+        fn sample, {durations, sizes, flags, composition_offsets} ->
+          flags =
+            case sample.sample_flags do
+              [] -> flags
+              <<_prefix::15, sync::1, _rest::binary>> -> <<flags::bitstring, sync::1>>
+            end
+
+          {
+            prepend(sample.sample_duration, durations),
+            prepend(sample.sample_size, sizes),
+            flags,
+            prepend(sample.sample_composition_offset, composition_offsets)
+          }
+        end
+      )
+
+    %Fragment.Run{
+      sample_count: fields.sample_count,
+      first_sample_flags: nullify(fields.first_sample_flags),
+      sample_durations: Enum.reverse(durations) |> nullify(),
+      sample_sizes: Enum.reverse(sizes) |> nullify(),
+      sync_samples: flags,
+      sample_composition_offsets: Enum.reverse(composition_offsets) |> nullify()
+    }
+  end
+
+  defp nullify([]), do: nil
+  defp nullify(value), do: value
+
+  defp prepend([], list), do: list
+  defp prepend(value, list), do: [value | list]
 end

@@ -4,8 +4,10 @@ defmodule ExMP4.Track.Fragment do
   """
 
   alias __MODULE__.Run
+  alias ExMP4.Track
 
   @type t :: %__MODULE__{
+          track_id: Track.id(),
           base_data_offset: integer(),
           default_sample_description_index: pos_integer() | nil,
           default_sample_size: pos_integer() | nil,
@@ -15,17 +17,22 @@ defmodule ExMP4.Track.Fragment do
           current_run: Run.t() | nil
         }
 
-  defstruct base_data_offset: 0,
-            default_sample_description_index: nil,
-            default_sample_size: nil,
-            default_sample_duration: nil,
-            default_sample_flags: nil,
-            runs: [],
-            current_run: nil
+  @enforce_keys [:track_id]
+  defstruct @enforce_keys ++
+              [
+                base_data_offset: 0,
+                default_sample_description_index: nil,
+                default_sample_size: nil,
+                default_sample_duration: nil,
+                default_sample_flags: nil,
+                runs: [],
+                current_run: nil
+              ]
 
-  @spec new() :: t()
-  def new() do
+  @spec new(Track.id()) :: t()
+  def new(track_id) do
     %__MODULE__{
+      track_id: track_id,
       current_run: %Run{
         sample_composition_offsets: [],
         sample_durations: [],
@@ -97,25 +104,8 @@ defmodule ExMP4.Track.Fragment do
     {moof, metadata}
   end
 
-  @spec add_run(
-          t(),
-          pos_integer(),
-          binary() | nil,
-          [pos_integer()] | nil,
-          [pos_integer()] | nil,
-          binary() | nil,
-          [pos_integer()] | nil
-        ) :: t()
-  def add_run(moof, count, first_sample_flags, durations, sizes, sync, composition_offsets) do
-    run = %Run{
-      sample_count: count,
-      first_sample_flags: first_sample_flags,
-      sample_durations: durations,
-      sample_sizes: sizes,
-      sync_samples: sync,
-      sample_composition_offsets: composition_offsets
-    }
-
+  @spec add_run(t(), Run.t()) :: t()
+  def add_run(moof, run) do
     %{moof | runs: moof.runs ++ [run]}
   end
 
