@@ -1,12 +1,12 @@
 defmodule ExMP4.Track.FragmentedSampleTable do
   @moduledoc false
 
-  alias __MODULE__.Moof
+  alias ExMP4.Track.Moof
 
   @type t :: %__MODULE__{
           default_sample_duration: integer(),
           default_sample_size: integer(),
-          default_sample_flags: binary(),
+          default_sample_flags: binary() | nil,
           default_sample_description_id: integer(),
           moofs: [Moof.t()],
           duration: integer(),
@@ -23,7 +23,6 @@ defmodule ExMP4.Track.FragmentedSampleTable do
             sample_count: 0,
             elapsed_duration: 0
 
-  @doc false
   @spec next_sample(t()) :: {t(), ExMP4.SampleMetadata.t()}
   def next_sample(%__MODULE__{moofs: [moof | rest]} = frag_table) do
     {moof, {duration, size, sync?, composition_offset}} = Moof.sample_metadata(moof)
@@ -82,6 +81,16 @@ defmodule ExMP4.Track.FragmentedSampleTable do
       | moofs: sample_table.moofs ++ [moof],
         duration: Moof.duration(moof, sample_table.default_sample_duration),
         sample_count: Moof.total_samples(moof)
+    }
+  end
+
+  @spec add_moof(t(), Moof.t()) :: t()
+  def add_moof(sample_table, fragment) do
+    %{
+      sample_table
+      | moofs: sample_table.moofs ++ [fragment],
+        duration: Moof.duration(fragment, sample_table.default_sample_duration),
+        sample_count: Moof.total_samples(fragment)
     }
   end
 

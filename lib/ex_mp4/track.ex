@@ -99,6 +99,12 @@ defmodule ExMP4.Track do
     }
   end
 
+  @spec add_fragment(t(), ExMP4.Track.Moof.t()) :: t()
+  def add_fragment(track, fragment) do
+    sample_table = FragmentedSampleTable.add_moof(track.frag_sample_table, fragment)
+    %{track | frag_sample_table: sample_table}
+  end
+
   @doc """
   Create a new track
   """
