@@ -62,13 +62,29 @@ defmodule ExMP4.MixProject do
       formatters: ["html"],
       source_ref: "v#{@version}",
       nest_modules_by_prefix: [
-        ExMP4,
         ExMP4.Box,
         ExMP4.Codec,
         ExMP4.Container,
-        ExMP4.Read,
         ExMP4.Track,
-        ExMP4.Write
+      ],
+      groups_for_modules: [
+        Core: [
+          "ExMP4",
+          "ExMP4.Reader",
+          "ExMP4.Writer",
+          "ExMP4.FWriter",
+          "ExMP4.Sample",
+          "ExMP4.SampleMetadata",
+          "ExMP4.Helper"
+        ],
+        Parsing: ~r/^ExMP4\.Container($|\.)/,
+        Track: [~r/^ExMP4\.Track($|\.)/],
+        Codec: [~r/^ExMP4\.Codec($|\.)/],
+        Behaviour: [
+          ~r/^ExMP4\.Read($|\.)/,
+          ~r/^ExMP4\.Write($|\.)/
+        ],
+        Box: ~r/^ExMP4\.Box($|\.)/
       ]
     ]
   end
