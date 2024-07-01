@@ -9,12 +9,13 @@ defmodule ExMP4.Sample do
           track_id: ExMP4.Track.id(),
           pts: non_neg_integer(),
           dts: non_neg_integer(),
+          duration: integer() | nil,
           sync?: boolean(),
           payload: binary() | nil
         }
 
   @enforce_keys [:track_id, :pts, :dts]
-  defstruct @enforce_keys ++ [payload: nil, sync?: false]
+  defstruct @enforce_keys ++ [duration: nil, payload: nil, sync?: false]
 
   @doc """
   Create a new sample
