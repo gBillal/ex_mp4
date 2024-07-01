@@ -1,5 +1,7 @@
 defmodule ExMP4.Track.Fragment.Run do
-  @moduledoc false
+  @moduledoc """
+  A struct representing a run (`trun` box) in a fragment.
+  """
 
   @type t :: %__MODULE__{
           sample_count: integer(),

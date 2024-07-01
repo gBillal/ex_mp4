@@ -1,5 +1,7 @@
 defmodule ExMP4.Track.FragmentedSampleTable do
-  @moduledoc false
+  @moduledoc """
+  A module that defines a structure for a fragmented sample table.
+  """
 
   alias ExMP4.Track.Fragment
 
@@ -23,6 +25,7 @@ defmodule ExMP4.Track.FragmentedSampleTable do
             sample_count: 0,
             elapsed_duration: 0
 
+  @doc false
   @spec next_sample(t()) :: {t(), ExMP4.SampleMetadata.t()}
   def next_sample(%__MODULE__{moofs: [moof | rest]} = frag_table) do
     {moof, {duration, size, sync?, composition_offset}} = Fragment.sample_metadata(moof)
@@ -52,6 +55,9 @@ defmodule ExMP4.Track.FragmentedSampleTable do
      }, sample_metadata}
   end
 
+  @doc """
+  Add a fragment to the sample table.
+  """
   @spec add_fragment(t(), Fragment.t()) :: t()
   def add_fragment(sample_table, fragment) do
     duration =
@@ -65,6 +71,7 @@ defmodule ExMP4.Track.FragmentedSampleTable do
     }
   end
 
+  @doc false
   @spec total_size(t()) :: integer()
   def total_size(%{moofs: moofs} = sample_table) do
     Enum.reduce(moofs, 0, &(Fragment.total_size(&1, sample_table.default_sample_size) + &2))
