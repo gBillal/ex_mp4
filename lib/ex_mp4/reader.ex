@@ -286,8 +286,9 @@ defmodule ExMP4.Reader do
   end
 
   defp max_duration(reader, tracks) do
-    track = Enum.max_by(tracks, & &1.duration)
-    ExMP4.Helper.timescalify(track.duration, track.timescale, reader.timescale)
+    tracks
+    |> Enum.map(&ExMP4.Helper.timescalify(&1.duration, &1.timescale, reader.timescale))
+    |> Enum.max()
   end
 
   defp next_element([], []), do: {:halt, []}

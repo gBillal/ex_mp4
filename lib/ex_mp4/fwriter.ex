@@ -1,4 +1,4 @@
-defmodule ExMP4.FragmentedWriter do
+defmodule ExMP4.FWriter do
   @moduledoc """
   Module responsible for writing fragmented MP4.
   """
@@ -37,6 +37,8 @@ defmodule ExMP4.FragmentedWriter do
 
   @doc """
   Create a new mp4 writer that writes to filesystem.
+
+  The tracks are assigned an id starting from 1.
   """
   @spec new(Path.t(), [ExMP4.Track.t()], new_opts()) :: {:ok, t()} | {:error, term()}
   def new(filename, tracks, opts \\ []) do
@@ -45,9 +47,17 @@ defmodule ExMP4.FragmentedWriter do
 
       tracks =
         tracks
-        |> Enum.map(
-          &%{&1 | sample_table: %SampleTable{}, frag_sample_table: %Track.FragmentedSampleTable{}}
-        )
+        |> Enum.with_index(1)
+        |> Enum.map(fn {track, id} ->
+          %{
+            track
+            | id: id,
+              duration: 0,
+              sample_count: 0,
+              sample_table: %SampleTable{},
+              frag_sample_table: %Track.FragmentedSampleTable{}
+          }
+        end)
         |> Map.new(&{&1.id, &1})
 
       {:ok, write_init_header(%{writer | tracks: tracks}, opts)}

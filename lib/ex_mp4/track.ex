@@ -93,8 +93,8 @@ defmodule ExMP4.Track do
     %{
       track
       | frag_sample_table: sample_table,
-        duration: track.duration + sample_table.duration,
-        sample_count: track.sample_count + sample_table.sample_count
+        duration: sample_table.duration,
+        sample_count: sample_table.sample_count
     }
   end
 

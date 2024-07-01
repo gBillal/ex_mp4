@@ -54,11 +54,14 @@ defmodule ExMP4.Track.FragmentedSampleTable do
 
   @spec add_fragment(t(), Fragment.t()) :: t()
   def add_fragment(sample_table, fragment) do
+    duration =
+      sample_table.duration + Fragment.duration(fragment, sample_table.default_sample_duration)
+
     %{
       sample_table
       | moofs: sample_table.moofs ++ [fragment],
-        duration: Fragment.duration(fragment, sample_table.default_sample_duration),
-        sample_count: Fragment.total_samples(fragment)
+        duration: duration,
+        sample_count: sample_table.sample_count + Fragment.total_samples(fragment)
     }
   end
 
