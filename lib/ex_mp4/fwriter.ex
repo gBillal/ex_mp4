@@ -16,15 +16,21 @@ defmodule ExMP4.FWriter do
           current_fragments: %{integer() => Fragment.t()},
           fragments_data: %{integer() => [binary()]},
           sequence_number: integer(),
-          base_data_offset: integer()
+          base_data_offset: integer(),
+          ftyp_box_size: integer(),
+          movie_box: Container.t() | nil
         }
 
+  @typedoc """
+  Options to supply when creating the writer.
+  """
   @type new_opts :: [
           major_brand: binary(),
           compatible_brands: [binary()],
           major_brand_version: integer(),
           creation_time: DateTime.t(),
-          modification_time: DateTime.t()
+          modification_time: DateTime.t(),
+          duration: integer() | boolean()
         ]
 
   defstruct writer_mod: nil,
@@ -33,35 +39,33 @@ defmodule ExMP4.FWriter do
             current_fragments: %{},
             fragments_data: %{},
             sequence_number: 0,
-            base_data_offset: 0
+            base_data_offset: 0,
+            ftyp_box_size: 0,
+            movie_box: nil
 
   @doc """
   Create a new mp4 writer that writes to filesystem.
 
   The tracks are assigned an id starting from 1.
+
+  The following options can be provided:
+    * `major_brand` - Set the major brand
+    * `compatible_brands` - Set the compatible brands
+    * `creation_time` - Set the creation time
+    * `modification_time` - Set the modification time
+    * `duration` - Set the total duration if known. The value can be `true`, `false` or an integer.
+
+      If `true`, the total duration of the presentation is calculated when closing the `writer` and the `mehd` box is
+      set to include the fragment duration. Note that this needs the output target to support seeking (not suitable for live streaming.)
+
+      If `false`, the total duration is not calculated and the `mehd` box is not included. This is suitable for real time or
+      for presentations where the total duration is not available.
+
+      If an integer, it's the total duration in the `movie` timescale and it'll be set in the `mehd` box.
   """
   @spec new(Path.t(), [ExMP4.Track.t()], new_opts()) :: {:ok, t()} | {:error, term()}
   def new(filename, tracks, opts \\ []) do
-    with {:ok, writer} <- do_new_writer(filename, ExMP4.Write.File) do
-      opts = validate_new_opts(opts)
-
-      tracks =
-        tracks
-        |> Enum.with_index(1)
-        |> Enum.map(fn {track, id} ->
-          %{
-            track
-            | id: id,
-              duration: 0,
-              sample_count: 0,
-              sample_table: %SampleTable{},
-              frag_sample_table: %Track.FragmentedSampleTable{}
-          }
-        end)
-        |> Map.new(&{&1.id, &1})
-
-      {:ok, write_init_header(%{writer | tracks: tracks}, opts)}
-    end
+    do_new_writer(filename, ExMP4.Write.File, tracks, opts)
   end
 
   @doc """
@@ -85,7 +89,7 @@ defmodule ExMP4.FWriter do
     track_ids = Map.keys(tracks)
 
     fragments =
-      Enum.reduce(track_ids, writer.current_fragments, &Map.put(&2, &1, Fragment.new(&1)))
+      Map.new(track_ids, &{&1, Fragment.new(&1, base_media_decode_time: tracks[&1].duration)})
 
     data = Enum.reduce(track_ids, writer.fragments_data, &Map.put(&2, &1, []))
 
@@ -121,7 +125,7 @@ defmodule ExMP4.FWriter do
       end)
 
     movie_fragment = MovieFragment.assemble(Map.values(fragments), writer.sequence_number)
-    movie_fragment_size = Container.serialize!(movie_fragment) |> byte_size()
+    movie_fragment_size = Container.serialize!(movie_fragment) |> IO.iodata_length()
 
     base_data_offset = writer.base_data_offset + movie_fragment_size + @mdat_header_size
 
@@ -153,8 +157,7 @@ defmodule ExMP4.FWriter do
 
     media_data =
       track_ids
-      |> Enum.flat_map(&Enum.reverse(writer.fragments_data[&1]))
-      |> Enum.join()
+      |> Enum.map(&Enum.reverse(writer.fragments_data[&1]))
       |> MediaData.assemble()
 
     write(writer, [Container.serialize!(movie_fragment), Container.serialize!(media_data)])
@@ -172,17 +175,53 @@ defmodule ExMP4.FWriter do
   Close the writer.
   """
   @spec close(t()) :: :ok
-  def close(writer), do: writer.writer_mod.close(writer.writer_state)
+  def close(writer) do
+    if writer.movie_box do
+      movie_box =
+        writer.tracks
+        |> Map.values()
+        |> Enum.map(&ExMP4.Helper.timescalify(&1.duration, &1.timescale, ExMP4.movie_timescale()))
+        |> Enum.max()
+        |> then(&Movie.update_fragment_duration(writer.movie_box, &1))
 
-  defp do_new_writer(input, writer_mod) do
+      writer.writer_mod.pwrite(
+        writer.writer_state,
+        {:bof, writer.ftyp_box_size},
+        Container.serialize!(movie_box),
+        false
+      )
+    end
+
+    writer.writer_mod.close(writer.writer_state)
+  end
+
+  defp do_new_writer(input, writer_mod, tracks, opts) do
     with {:ok, reader_state} <- writer_mod.open(input) do
+      opts = validate_new_opts(opts)
+
+      tracks =
+        tracks
+        |> Enum.with_index(1)
+        |> Enum.map(fn {track, id} ->
+          %{
+            track
+            | id: id,
+              duration: 0,
+              sample_count: 0,
+              sample_table: %SampleTable{},
+              frag_sample_table: %Track.FragmentedSampleTable{}
+          }
+        end)
+        |> Map.new(&{&1.id, &1})
+
       writer =
         %__MODULE__{
           writer_mod: ExMP4.Write.File,
-          writer_state: reader_state
+          writer_state: reader_state,
+          tracks: tracks
         }
 
-      {:ok, writer}
+      {:ok, write_init_header(writer, opts)}
     end
   end
 
@@ -190,16 +229,18 @@ defmodule ExMP4.FWriter do
     utc_date = DateTime.utc_now()
 
     Keyword.validate!(opts,
-      major_brand: "iso5",
+      major_brand: "isom",
       major_brand_version: 512,
-      compatible_brands: ["iso6", "mp41"],
+      compatible_brands: ["isom", "iso2", "avc1", "mp41", "iso6"],
       creation_time: utc_date,
-      modification_time: utc_date
+      modification_time: utc_date,
+      duration: false
     )
   end
 
   defp write_init_header(writer, opts) do
     tracks = Map.values(writer.tracks)
+    fragment_duration = fragment_duration(opts[:duration])
 
     ftyp_box =
       FileType.assemble(opts[:major_brand], opts[:compatible_brands], opts[:major_brand_version])
@@ -208,15 +249,24 @@ defmodule ExMP4.FWriter do
       writer.tracks
       |> Map.values()
       |> Enum.sort_by(& &1.id)
-      |> Movie.assemble(opts, MovieExtendsBox.assemble(tracks))
+      |> Movie.assemble(opts, MovieExtendsBox.assemble(tracks, fragment_duration))
 
     ftyp_box_data = Container.serialize!(ftyp_box)
     movie_box_data = Container.serialize!(movie_box)
 
     write(writer, [ftyp_box_data, movie_box_data])
 
-    %{writer | base_data_offset: byte_size(ftyp_box_data) + byte_size(movie_box_data)}
+    %{
+      writer
+      | base_data_offset: IO.iodata_length(ftyp_box_data) + IO.iodata_length(movie_box_data),
+        ftyp_box_size: IO.iodata_length(ftyp_box_data),
+        movie_box: if(fragment_duration == 0, do: movie_box)
+    }
   end
 
   defp write(%{writer_mod: writer, writer_state: state}, data), do: writer.write(state, data)
+
+  defp fragment_duration(false), do: nil
+  defp fragment_duration(true), do: 0
+  defp fragment_duration(duration) when is_integer(duration), do: duration
 end

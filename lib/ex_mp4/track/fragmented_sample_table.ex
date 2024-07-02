@@ -35,7 +35,7 @@ defmodule ExMP4.Track.FragmentedSampleTable do
       pts: frag_table.elapsed_duration + composition_offset,
       duration: duration || frag_table.default_sample_duration,
       size: size || frag_table.default_sample_size,
-      sync?: sync? || sync?(frag_table.default_sample_flags),
+      sync?: sync?(sync?, frag_table.default_sample_flags),
       offset: moof.base_data_offset
     }
 
@@ -77,6 +77,7 @@ defmodule ExMP4.Track.FragmentedSampleTable do
     Enum.reduce(moofs, 0, &(Fragment.total_size(&1, sample_table.default_sample_size) + &2))
   end
 
-  defp sync?(<<_prefix::15, sync::1, _rest::binary>>), do: sync == 0
-  defp sync?(_flags), do: false
+  defp sync?(nil, nil), do: nil
+  defp sync?(nil, number), do: Bitwise.band(number, 0x10000) == 0
+  defp sync?(value, _number), do: value
 end

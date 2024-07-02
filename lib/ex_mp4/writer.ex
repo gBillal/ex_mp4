@@ -79,7 +79,7 @@ defmodule ExMP4.Writer do
     write(writer, Container.serialize!(ftyp_box))
     write(writer, Container.serialize!(mdata_box))
 
-    %__MODULE__{writer | ftyp_size: byte_size(Container.serialize!(ftyp_box))}
+    %__MODULE__{writer | ftyp_size: IO.iodata_length(Container.serialize!(ftyp_box))}
   end
 
   @doc """

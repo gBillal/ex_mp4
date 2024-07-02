@@ -5,7 +5,6 @@ defmodule ExMP4.Track.SampleTable do
   care of recording information required to build a sample table.
   """
 
-
   alias ExMP4.Sample
 
   @type t :: %__MODULE__{

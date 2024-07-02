@@ -87,6 +87,13 @@ defmodule ExMP4.Box.MovieFragment do
                 default_sample_size: fragment.default_sample_size,
                 default_sample_flags: fragment.default_sample_flags
               }
+            },
+            tfdt: %{
+              fields: %{
+                version: 1,
+                flags: 0,
+                base_media_decode_time: fragment.base_media_decode_time
+              }
             }
           ] ++ Enum.flat_map(fragment.runs, &track_run/1)
       }

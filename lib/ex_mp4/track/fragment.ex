@@ -13,6 +13,7 @@ defmodule ExMP4.Track.Fragment do
           default_sample_size: pos_integer() | nil,
           default_sample_duration: pos_integer() | nil,
           default_sample_flags: integer() | nil,
+          base_media_decode_time: integer(),
           runs: [Run.t()],
           current_run: Run.t() | nil
         }
@@ -25,20 +26,23 @@ defmodule ExMP4.Track.Fragment do
                 default_sample_size: nil,
                 default_sample_duration: nil,
                 default_sample_flags: nil,
+                base_media_decode_time: 0,
                 runs: [],
                 current_run: nil
               ]
 
-  @spec new(Track.id()) :: t()
-  def new(track_id) do
+  @spec new(Track.id(), Keyword.t()) :: t()
+  def new(track_id, opts \\ []) do
+    fragment = struct!(__MODULE__, Keyword.put(opts, :track_id, track_id))
+
     %__MODULE__{
-      track_id: track_id,
-      current_run: %Run{
-        sample_composition_offsets: [],
-        sample_durations: [],
-        sample_sizes: [],
-        sync_samples: <<>>
-      }
+      fragment
+      | current_run: %Run{
+          sample_composition_offsets: [],
+          sample_durations: [],
+          sample_sizes: [],
+          sync_samples: <<>>
+        }
     }
   end
 
@@ -56,8 +60,9 @@ defmodule ExMP4.Track.Fragment do
     |> then(&%{&1 | runs: &1.runs ++ [&1.current_run], current_run: nil})
   end
 
+  @spec duration(t()) :: integer()
   @spec duration(t(), integer() | nil) :: integer()
-  def duration(moof, default_duration) do
+  def duration(moof, default_duration \\ nil) do
     Enum.reduce(moof.runs, 0, fn
       %{sample_durations: nil} = run, total ->
         total + run.sample_count * (moof.default_sample_duration || default_duration)
@@ -91,7 +96,7 @@ defmodule ExMP4.Track.Fragment do
     metadata = {
       duration || fragment.default_sample_duration,
       size || fragment.default_sample_size,
-      sync? || sync?(fragment.default_sample_flags),
+      sync?(sync?, fragment.default_sample_flags),
       composition_offset
     }
 
@@ -109,8 +114,9 @@ defmodule ExMP4.Track.Fragment do
     %{moof | runs: moof.runs ++ [run]}
   end
 
-  defp sync?(<<_prefix::15, sync::1, _rest::binary>>), do: sync == 0
-  defp sync?(_flags), do: false
+  defp sync?(nil, nil), do: nil
+  defp sync?(nil, number), do: Bitwise.band(number, 0x10000) == 0
+  defp sync?(value, _number), do: value
 
   defp maybe_remove_composition_offsets(%{current_run: run} = fragment) do
     run =

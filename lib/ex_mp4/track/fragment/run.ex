@@ -82,7 +82,7 @@ defmodule ExMP4.Track.Fragment.Run do
     {%{run | sync_samples: rest}, sync == 0}
   end
 
-  defp sync?(run), do: {run, false}
+  defp sync?(run), do: {run, nil}
 
   defp sample_composition_offset(%{sample_composition_offsets: nil} = run), do: {run, 0}
 

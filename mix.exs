@@ -65,7 +65,7 @@ defmodule ExMP4.MixProject do
         ExMP4.Box,
         ExMP4.Codec,
         ExMP4.Container,
-        ExMP4.Track,
+        ExMP4.Track
       ],
       groups_for_modules: [
         Core: [

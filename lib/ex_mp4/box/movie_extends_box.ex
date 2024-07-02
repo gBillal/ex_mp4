@@ -11,10 +11,18 @@ defmodule ExMP4.Box.MovieExtendsBox do
   alias ExMP4.{Container, Track}
 
   @spec assemble([Track.t()]) :: Container.t()
-  def assemble(tracks) do
+  @spec assemble([Track.t()], integer() | nil) :: Container.t()
+  def assemble(tracks, total_duration \\ nil) do
+    mehd =
+      if total_duration do
+        [mehd: %{fields: %{version: 0, flags: 0, fragment_duration: total_duration}}]
+      else
+        []
+      end
+
     [
       mvex: %{
-        children: Enum.flat_map(tracks, &track_extends_box/1)
+        children: mehd ++ Enum.flat_map(tracks, &track_extends_box/1)
       }
     ]
   end
@@ -35,6 +43,6 @@ defmodule ExMP4.Box.MovieExtendsBox do
     ]
   end
 
-  defp default_flags(:video), do: <<0, 1, 0, 0>>
-  defp default_flags(_media_type), do: <<0::32>>
+  defp default_flags(:video), do: 0x10000
+  defp default_flags(_media_type), do: 0
 end

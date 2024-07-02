@@ -49,8 +49,8 @@ defmodule ExMP4.FWriterTest do
 
     assert {:ok, reader} = ExMP4.Reader.new(filepath)
 
-    assert reader.major_brand == "iso5"
-    assert reader.compatible_brands == ["iso6", "mp41"]
+    assert reader.major_brand == "isom"
+    assert reader.compatible_brands == ["isom", "iso2", "avc1", "mp41", "iso6"]
     assert reader.duration == 3500
     assert reader.timescale == 1000
     assert reader.fragmented?

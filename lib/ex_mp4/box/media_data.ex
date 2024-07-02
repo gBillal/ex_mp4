@@ -10,7 +10,7 @@ defmodule ExMP4.Box.MediaData do
   """
   alias ExMP4.Container
 
-  @spec assemble(binary) :: Container.t()
+  @spec assemble(iodata()) :: Container.t()
   def assemble(media_data) do
     [
       mdat: %{
