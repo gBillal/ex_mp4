@@ -82,7 +82,7 @@ defmodule ExMP4.FWriter do
   @doc """
   Create a new empty fragment.
 
-  After adding samples, the fragment should be flashed, with `flush_segment/1`.
+  After adding samples, the fragment should be flashed, with `flush_fragment/1`.
   """
   @spec create_fragment(t()) :: t()
   def create_fragment(%{tracks: tracks} = writer) do

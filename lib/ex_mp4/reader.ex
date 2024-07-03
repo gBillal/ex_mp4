@@ -61,7 +61,7 @@ defmodule ExMP4.Reader do
   @type stream_opts :: [tracks: [non_neg_integer()]]
 
   @typedoc """
-  Struct describing
+  Struct describing an MP4 reader.
   """
   @type t :: %__MODULE__{
           duration: non_neg_integer(),
