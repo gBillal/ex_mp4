@@ -1,13 +1,9 @@
 defmodule ExMP4.Track.SampleTable do
-  @moduledoc false
-
-  # A module that defines a structure and functions allowing to store samples,
-  # assemble them into chunks and flush when needed. Its public functions take
-  # care of recording information required to build a sample table.
-
-  # For performance reasons, the module uses prepends when storing information
-  # about new samples. To compensate for it, use `#{inspect(&__MODULE__.reverse/1)}`
-  # when it's known that no more samples will be stored.
+  @moduledoc """
+  A module that defines a structure and functions allowing to store samples,
+  assemble them into chunks and flush when needed. Its public functions take
+  care of recording information required to build a sample table.
+  """
 
   alias ExMP4.Sample
 
@@ -59,6 +55,9 @@ defmodule ExMP4.Track.SampleTable do
             elapsed_duration: 0,
             chunk_sample_index: 1
 
+  @doc """
+  Store a new sample.
+  """
   @spec store_sample(t(), Sample.t()) :: t()
   def store_sample(sample_table, sample) do
     sample_table
@@ -70,10 +69,19 @@ defmodule ExMP4.Track.SampleTable do
     |> store_last_dts(sample)
   end
 
+  @doc """
+  Get the total size of the samples in the sample table.
+  """
   @spec total_size(t()) :: non_neg_integer()
   def total_size(%{sample_sizes: [], sample_size: size, sample_count: count}), do: size * count
   def total_size(%{sample_sizes: sample_sizes}), do: Enum.sum(sample_sizes)
 
+  @doc """
+  Get the current chunk duration.
+
+  Samples are added and buffered in the sample table into chunks, once a chunk duration
+  is reached, it can be flushed using `flush_chunk/2`.
+  """
   @spec chunk_duration(__MODULE__.t()) :: ExMP4.duration()
   def chunk_duration(%{chunk_first_dts: nil}), do: 0
 
@@ -82,6 +90,12 @@ defmodule ExMP4.Track.SampleTable do
     sample_table.last_dts - sample_table.chunk_first_dts
   end
 
+  @doc """
+  Flush the current chunk.
+
+  Flushing update the internal structure of the sample table and assemble
+  the samples payload into a binary that can be stored.
+  """
   @spec flush_chunk(__MODULE__.t(), non_neg_integer) :: {binary, __MODULE__.t()}
   def flush_chunk(%{chunk: []} = sample_table, _chunk_offset),
     do: {<<>>, sample_table}
@@ -100,6 +114,7 @@ defmodule ExMP4.Track.SampleTable do
     {chunk, sample_table}
   end
 
+  @doc false
   @spec reverse(__MODULE__.t()) :: __MODULE__.t()
   def reverse(sample_table) do
     to_reverse = [
@@ -118,7 +133,8 @@ defmodule ExMP4.Track.SampleTable do
     end)
   end
 
-  # Used for track Enumerable
+  @doc false
+  @spec next_sample(t()) :: {t(), ExMP4.SampleMetadata.t()}
   def next_sample(sample_table) do
     {sample_table, %ExMP4.SampleMetadata{}}
     |> sample_timestamps()

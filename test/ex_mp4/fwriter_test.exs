@@ -1,23 +1,20 @@
-defmodule ExMP4.WriterTest do
+defmodule ExMP4.FWriterTest do
   @moduledoc false
 
   use ExUnit.Case
 
   import ExMP4.Support.Utils
 
-  alias ExMP4.{Sample, Writer}
+  alias ExMP4.{FWriter, Sample}
 
   @moduletag :tmp_dir
 
   @video_payload <<1::40-integer-unit(8)>>
   @audio_payload <<0::10-integer-unit(8)>>
 
-  test "write mp4", %{tmp_dir: tmp_dir} do
+  test "write fragmented mp4", %{tmp_dir: tmp_dir} do
     filepath = Path.join(tmp_dir, "out.mp4")
-    assert {:ok, writer} = Writer.new(filepath)
-
-    writer = Writer.write_header(writer, major_brand: "iso2", compatible_brands: ["isom", "mp41"])
-    writer = Writer.add_tracks(writer, [video_track(), audio_track()])
+    assert {:ok, writer} = FWriter.new(filepath, [video_track(), audio_track()])
 
     video_sample_1 =
       Sample.new(track_id: 1, dts: 0, pts: 2000, sync?: true, payload: @video_payload)
@@ -35,23 +32,28 @@ defmodule ExMP4.WriterTest do
     audio_sample_4 = Sample.new(track_id: 2, dts: 70_000, pts: 70_000, payload: @audio_payload)
 
     assert :ok =
-             Writer.write_sample(writer, video_sample_1)
-             |> Writer.write_sample(video_sample_2)
-             |> Writer.write_sample(video_sample_3)
-             |> Writer.write_sample(video_sample_4)
-             |> Writer.write_sample(video_sample_5)
-             |> Writer.write_sample(audio_sample_1)
-             |> Writer.write_sample(audio_sample_2)
-             |> Writer.write_sample(audio_sample_3)
-             |> Writer.write_sample(audio_sample_4)
-             |> Writer.write_trailer()
+             FWriter.create_fragment(writer)
+             |> FWriter.write_sample(video_sample_1)
+             |> FWriter.write_sample(video_sample_2)
+             |> FWriter.write_sample(video_sample_3)
+             |> FWriter.write_sample(audio_sample_1)
+             |> FWriter.write_sample(audio_sample_2)
+             |> FWriter.flush_fragment()
+             |> FWriter.create_fragment()
+             |> FWriter.write_sample(video_sample_4)
+             |> FWriter.write_sample(video_sample_5)
+             |> FWriter.write_sample(audio_sample_3)
+             |> FWriter.write_sample(audio_sample_4)
+             |> FWriter.flush_fragment()
+             |> FWriter.close()
 
     assert {:ok, reader} = ExMP4.Reader.new(filepath)
 
-    assert reader.major_brand == "iso2"
-    assert reader.compatible_brands == ["isom", "mp41"]
+    assert reader.major_brand == "isom"
+    assert reader.compatible_brands == ["isom", "iso2", "avc1", "mp41", "iso6"]
     assert reader.duration == 3500
     assert reader.timescale == 1000
+    assert reader.fragmented?
 
     video_track = Enum.find(ExMP4.Reader.tracks(reader), &(&1.type == :video))
     audio_track = Enum.find(ExMP4.Reader.tracks(reader), &(&1.type == :audio))
@@ -59,27 +61,8 @@ defmodule ExMP4.WriterTest do
     refute is_nil(video_track)
     refute is_nil(audio_track)
 
-    assert %{
-             id: 1,
-             media: :h265,
-             priv_data: %ExMP4.Codec.Hevc{},
-             width: 1080,
-             height: 720,
-             timescale: 2000,
-             sample_count: 5
-           } = video_track
-
-    assert %{
-             id: 2,
-             media: :aac,
-             priv_data: <<0, 0, 1, 3, 2>>,
-             width: nil,
-             height: nil,
-             timescale: 48_000,
-             channels: 2,
-             sample_rate: 48_000,
-             sample_count: 4
-           } = audio_track
+    assert length(video_track.frag_sample_table.moofs) == 2
+    assert length(audio_track.frag_sample_table.moofs) == 2
 
     expected_result = [
       {0, 2000, true},
@@ -107,30 +90,5 @@ defmodule ExMP4.WriterTest do
     end
 
     assert :ok = ExMP4.Reader.close(reader)
-  end
-
-  test "fast start", %{tmp_dir: tmp_dir} do
-    filepath = Path.join(tmp_dir, "out.mp4")
-    assert {:ok, writer} = Writer.new(filepath, fast_start: true)
-
-    writer = Writer.write_header(writer)
-    writer = Writer.add_track(writer, video_track())
-
-    video_sample_1 =
-      Sample.new(
-        track_id: 1,
-        dts: 0,
-        pts: 2000,
-        sync?: true,
-        payload: @video_payload
-      )
-
-    assert :ok =
-             writer
-             |> Writer.write_sample(video_sample_1)
-             |> Writer.write_trailer()
-
-    assert {:ok, data} = File.read(filepath)
-    assert <<_ftyp::binary-size(32), _moov_size::binary-size(4), "moov", _rest::binary>> = data
   end
 end

@@ -11,7 +11,7 @@ defmodule ExMP4.Write.File do
   def open(filename), do: File.open(filename, [:binary, :exclusive, :read])
 
   @impl true
-  def write(fd, data), do: IO.binwrite(fd, data)
+  def write(fd, data), do: :file.write(fd, data)
 
   @impl true
   def pwrite(fd, location, data, false) do

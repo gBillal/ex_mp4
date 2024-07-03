@@ -86,16 +86,15 @@ defmodule ExMP4.Track do
     }
   end
 
-  @doc false
-  @spec from_moof(t(), box(), [box()]) :: t()
-  def from_moof(track, tfhd, truns) do
-    sample_table = FragmentedSampleTable.add_moof(track.frag_sample_table, tfhd, truns)
+  @spec add_fragment(t(), ExMP4.Track.Fragment.t()) :: t()
+  def add_fragment(track, fragment) do
+    sample_table = FragmentedSampleTable.add_fragment(track.frag_sample_table, fragment)
 
     %{
       track
       | frag_sample_table: sample_table,
-        duration: track.duration + sample_table.duration,
-        sample_count: track.sample_count + sample_table.sample_count
+        duration: sample_table.duration,
+        sample_count: sample_table.sample_count
     }
   end
 

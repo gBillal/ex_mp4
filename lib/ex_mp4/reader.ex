@@ -61,7 +61,7 @@ defmodule ExMP4.Reader do
   @type stream_opts :: [tracks: [non_neg_integer()]]
 
   @typedoc """
-  Struct describing
+  Struct describing an MP4 reader.
   """
   @type t :: %__MODULE__{
           duration: non_neg_integer(),
@@ -139,17 +139,10 @@ defmodule ExMP4.Reader do
   """
   @spec read_sample(t(), Track.id(), Sample.id()) :: Sample.t()
   def read_sample(%__MODULE__{} = reader, track_id, sample_id) do
-    track = Map.fetch!(reader.tracks, track_id)
-    metadata = Enum.at(track, sample_id)
-    sample_data = reader.reader_mod.pread(reader.reader_state, metadata.offset, metadata.size)
-
-    %Sample{
-      track_id: track_id,
-      dts: metadata.dts,
-      pts: metadata.pts,
-      sync?: metadata.sync?,
-      payload: sample_data
-    }
+    reader.tracks
+    |> Map.fetch!(track_id)
+    |> Enum.at(sample_id)
+    |> do_get_sample(reader)
   end
 
   @doc """
@@ -244,15 +237,12 @@ defmodule ExMP4.Reader do
   end
 
   defp do_parse_metadata(reader, %{name: :moof} = header, {data, rest}) do
-    box = read_and_parse_box(reader, header, {data, rest})
-
-    Keyword.get_values(box[:moof][:children], :traf)
-    |> Enum.map(fn traf ->
-      tfhd = traf[:children][:tfhd]
-      truns = Keyword.get_values(traf[:children], :trun)
-      Track.from_moof(reader.tracks[tfhd.fields.track_id], tfhd, truns)
+    reader
+    |> read_and_parse_box(header, {data, rest})
+    |> ExMP4.Box.MovieFragment.unpack()
+    |> Enum.reduce(reader.tracks, fn fragment, tracks ->
+      Map.update!(tracks, fragment.track_id, &Track.add_fragment(&1, fragment))
     end)
-    |> Map.new(&{&1.id, &1})
     |> then(&%{reader | tracks: &1, duration: max_duration(reader, Map.values(&1))})
   end
 
@@ -296,8 +286,9 @@ defmodule ExMP4.Reader do
   end
 
   defp max_duration(reader, tracks) do
-    track = Enum.max_by(tracks, & &1.duration)
-    ExMP4.Helper.timescalify(track.duration, track.timescale, reader.timescale)
+    tracks
+    |> Enum.map(&ExMP4.Helper.timescalify(&1.duration, &1.timescale, reader.timescale))
+    |> Enum.max()
   end
 
   defp next_element([], []), do: {:halt, []}
@@ -342,6 +333,7 @@ defmodule ExMP4.Reader do
       track_id: metadata.track_id,
       dts: metadata.dts,
       pts: metadata.pts,
+      duration: metadata.duration,
       sync?: metadata.sync?,
       payload: payload
     }

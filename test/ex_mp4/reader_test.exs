@@ -49,6 +49,7 @@ defmodule ExMP4.ReaderTest do
     assert %Sample{
              pts: 0,
              dts: 0,
+             duration: 512,
              sync?: true,
              payload: payload
            } = Reader.read_sample(reader, 1, 0)

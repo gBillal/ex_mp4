@@ -17,12 +17,10 @@ defmodule ExMP4.Box.Movie do
   alias ExMP4.Box.Track, as: TrackBox
   alias ExMP4.{Container, Track}
 
-  @movie_timescale 1000
-
   @spec assemble([Track.t()], Keyword.t()) :: Container.t()
   @spec assemble([Track.t()], Keyword.t(), Container.t()) :: Container.t()
   def assemble(tracks, header_opts, extensions \\ []) do
-    tracks = Enum.map(tracks, &Track.finalize(&1, @movie_timescale))
+    tracks = Enum.map(tracks, &Track.finalize(&1, ExMP4.movie_timescale()))
 
     header = movie_header(tracks, header_opts)
     track_boxes = Enum.flat_map(tracks, &TrackBox.assemble/1)
@@ -30,9 +28,10 @@ defmodule ExMP4.Box.Movie do
     [moov: %{children: header ++ track_boxes ++ extensions, fields: %{}}]
   end
 
+  @doc false
   @spec adjust_chunk_offsets(Container.t()) :: Container.t()
   def adjust_chunk_offsets(movie_box) do
-    movie_box_size = movie_box |> Container.serialize!() |> byte_size()
+    movie_box_size = movie_box |> Container.serialize!() |> IO.iodata_length()
     movie_box_children = get_in(movie_box, [:moov, :children])
 
     # updates all `trak` boxes by adding `movie_box_size` to the offset of each chunk in their sample tables
@@ -54,6 +53,14 @@ defmodule ExMP4.Box.Movie do
     |> Keyword.delete(:trak)
     |> Keyword.merge(track_boxes_with_offset)
     |> then(&[moov: %{children: &1, fields: %{}}])
+  end
+
+  @doc false
+  @spec update_fragment_duration(Container.t(), integer()) :: Container.t()
+  def update_fragment_duration(movie_box, duration) do
+    Container.update_box(movie_box, [:moov, :mvex, :mehd], [:fields], fn fields ->
+      %{fields | fragment_duration: duration}
+    end)
   end
 
   defp movie_header(tracks, opts) do
@@ -84,7 +91,7 @@ defmodule ExMP4.Box.Movie do
           quicktime_selection_duration: 0,
           quicktime_selection_time: 0,
           rate: {1, 0},
-          timescale: @movie_timescale,
+          timescale: ExMP4.movie_timescale(),
           version: 0,
           volume: {1, 0}
         }

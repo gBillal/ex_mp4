@@ -9,6 +9,7 @@ defmodule ExMP4.MixProject do
       app: :ex_mp4,
       version: @version,
       elixir: "~> 1.15",
+      elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       deps: deps(),
 
@@ -29,6 +30,9 @@ defmodule ExMP4.MixProject do
       extra_applications: [:logger]
     ]
   end
+
+  defp elixirc_paths(:test), do: ["lib", "test/support"]
+  defp elixirc_paths(_env), do: ["lib"]
 
   # Run "mix help deps" to learn about dependencies.
   defp deps do
@@ -54,17 +58,39 @@ defmodule ExMP4.MixProject do
   defp docs do
     [
       main: "readme",
-      extras: ["README.md", "examples/copy_track.livemd", "examples/crop.livemd", "LICENSE"],
+      extras: [
+        "README.md",
+        "examples/copy_track.livemd",
+        "examples/crop.livemd",
+        "examples/progressive_to_fragmented.livemd",
+        "LICENSE"
+      ],
       formatters: ["html"],
       source_ref: "v#{@version}",
       nest_modules_by_prefix: [
-        ExMP4,
         ExMP4.Box,
         ExMP4.Codec,
         ExMP4.Container,
-        ExMP4.Read,
-        ExMP4.Track,
-        ExMP4.Write
+        ExMP4.Track
+      ],
+      groups_for_modules: [
+        Core: [
+          "ExMP4",
+          "ExMP4.Reader",
+          "ExMP4.Writer",
+          "ExMP4.FWriter",
+          "ExMP4.Sample",
+          "ExMP4.SampleMetadata",
+          "ExMP4.Helper"
+        ],
+        Parsing: ~r/^ExMP4\.Container($|\.)/,
+        Track: [~r/^ExMP4\.Track($|\.)/],
+        Codec: [~r/^ExMP4\.Codec($|\.)/],
+        Behaviour: [
+          ~r/^ExMP4\.Read($|\.)/,
+          ~r/^ExMP4\.Write($|\.)/
+        ],
+        Box: ~r/^ExMP4\.Box($|\.)/
       ]
     ]
   end

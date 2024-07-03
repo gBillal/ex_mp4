@@ -1,0 +1,89 @@
+# Convert Progressive MP4 to Fragmented
+
+```elixir
+Mix.install([
+  :ex_mp4,
+  {:kino, "~> 0.11.0"}
+])
+```
+
+## Progressive MP4 to Fragmented
+
+In this guide, we'll convert an progressive mp4 to a fragmented one.
+
+### Inputs
+
+The inputs are the progressive mp4 file and the a fragment duration in millisecond.
+
+### Output
+
+A fragmented mp4
+
+```elixir
+defmodule MP4Converter do
+  alias ExMP4.{FWriter, Reader}
+
+  def convert(filename, output, fragment_duration \\ 4_000) do
+    reader = Reader.new!(filename)
+    tracks = Reader.tracks(reader) |> Enum.sort_by(& &1.id)
+
+    movie_duration =
+      ExMP4.Helper.timescalify(reader.duration, reader.timescale, ExMP4.movie_timescale())
+
+    durations =
+      Map.new(
+        tracks,
+        &{&1.id, ExMP4.Helper.timescalify(fragment_duration, :millisecond, &1.timescale)}
+      )
+
+    curr_durations = Map.new(tracks, &{&1.id, 0})
+
+    writer =
+      FWriter.new!(output, tracks, duration: movie_duration)
+      |> FWriter.create_fragment()
+
+    {writer, _durations} =
+      Reader.stream(reader)
+      |> Reader.samples(reader)
+      |> Enum.reduce({writer, curr_durations}, fn sample, {writer, curr_durations} ->
+        curr_durations = Map.update!(curr_durations, sample.track_id, &(&1 + sample.duration))
+
+        new_fragment? = curr_durations[sample.track_id] >= durations[sample.track_id]
+
+        {writer, durations} =
+          if new_fragment? do
+            curr_durations = Map.new(Map.keys(curr_durations), &{&1, 0})
+            curr_durations = Map.put(curr_durations, sample.track_id, sample.duration)
+            {FWriter.flush_fragment(writer) |> FWriter.create_fragment(), curr_durations}
+          else
+            {writer, curr_durations}
+          end
+
+        {FWriter.write_sample(writer, sample), durations}
+      end)
+
+    writer
+    |> FWriter.flush_fragment()
+    |> FWriter.close()
+  end
+end
+```
+
+```elixir
+form =
+  Kino.Control.form(
+    [
+      source: Kino.Input.text("Source Path"),
+      dest: Kino.Input.text("Destination Path"),
+      duration: Kino.Input.number("Duration", default: 4_000)
+    ],
+    submit: "Submit"
+  )
+
+Kino.listen(form, fn %{data: data} ->
+  MP4Converter.convert(data.source, data.dest, data.duration)
+  IO.puts("Done converting")
+end)
+
+form
+```

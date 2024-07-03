@@ -353,6 +353,15 @@ defmodule ExMP4.Container.Schema do
                   ]
                 ],
                 mvex: [
+                  mehd: [
+                    version: 0,
+                    fields:
+                      @full_box ++
+                        [
+                          fragment_duration: {:uint32, when: {:version, value: 0}},
+                          fragment_duration: {:uint64, when: {:version, value: 1}}
+                        ]
+                  ],
                   trex: [
                     version: 0,
                     fields:
@@ -362,7 +371,7 @@ defmodule ExMP4.Container.Schema do
                           default_sample_description_index: :uint32,
                           default_sample_duration: :uint32,
                           default_sample_size: :uint32,
-                          default_sample_flags: :bin32
+                          default_sample_flags: :uint32
                         ]
                   ]
                 ]

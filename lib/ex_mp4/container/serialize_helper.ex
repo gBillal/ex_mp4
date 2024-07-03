@@ -15,18 +15,15 @@ defmodule ExMP4.Container.SerializeHelper do
 
   @spec serialize_boxes(Container.t(), Schema.t(), context_t()) ::
           {{:error, Container.serialize_error_context_t()}, context_t()}
-          | {{:ok, binary}, context_t()}
+          | {{:ok, iodata()}, context_t()}
   def serialize_boxes(mp4, schema, context) do
-    with {{:ok, data}, context} <-
-           Bunch.Enum.try_map_reduce(mp4, context, fn {box_name, box}, context ->
-             serialize_box(box_name, box, Map.fetch(schema, box_name), context)
-           end) do
-      {{:ok, IO.iodata_to_binary(data)}, context}
-    end
+    Bunch.Enum.try_map_reduce(mp4, context, fn {box_name, box}, context ->
+      serialize_box(box_name, box, Map.fetch(schema, box_name), context)
+    end)
   end
 
   defp serialize_box(box_name, %{content: content}, _schema, context) do
-    header = serialize_header(box_name, byte_size(content))
+    header = serialize_header(box_name, size(content))
     {{:ok, [header, content]}, context}
   end
 
@@ -35,7 +32,7 @@ defmodule ExMP4.Container.SerializeHelper do
            serialize_fields(Map.get(box, :fields, %{}), schema.fields, context),
          {{:ok, children}, context} <-
            serialize_boxes(Map.get(box, :children, %{}), schema.children, context) do
-      header = serialize_header(box_name, byte_size(fields) + byte_size(children))
+      header = serialize_header(box_name, size(fields) + size(children))
       {{:ok, [header, fields, children]}, context}
     else
       {{:error, error_context}, context} -> {{:error, [box: box_name] ++ error_context}, context}
@@ -161,4 +158,7 @@ defmodule ExMP4.Container.SerializeHelper do
   end
 
   defp serialize_field(_term, _type, context), do: {{:error, []}, context}
+
+  defp size(content) when is_binary(content), do: byte_size(content)
+  defp size(content), do: IO.iodata_length(content)
 end
