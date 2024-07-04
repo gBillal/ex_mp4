@@ -88,7 +88,8 @@ defmodule ExMP4.MixProject do
         Codec: [~r/^ExMP4\.Codec($|\.)/],
         Behaviour: [
           ~r/^ExMP4\.Read($|\.)/,
-          ~r/^ExMP4\.Write($|\.)/
+          ~r/^ExMP4\.DataWriter($|\.)/,
+          ~r/^ExMP4\.FragDataWriter($|\.)/
         ],
         Box: ~r/^ExMP4\.Box($|\.)/
       ]

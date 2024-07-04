@@ -40,7 +40,7 @@ defmodule ExMP4.Writer do
   """
   @spec new(Path.t(), new_opts()) :: {:ok, t()} | {:error, reason :: any()}
   def new(filepath, opts \\ []) do
-    do_new_writer(filepath, ExMP4.Write.File, opts)
+    do_new_writer(filepath, ExMP4.DataWriter.File, opts)
   end
 
   @doc """
@@ -76,10 +76,12 @@ defmodule ExMP4.Writer do
     ftyp_box = FileType.assemble(major_brand, compatible_brands, version)
     mdata_box = MediaData.assemble(<<>>)
 
-    write(writer, Container.serialize!(ftyp_box))
-    write(writer, Container.serialize!(mdata_box))
+    ftyp_box_data = Container.serialize!(ftyp_box)
+    mdat_box_data = Container.serialize!(mdata_box)
 
-    %__MODULE__{writer | ftyp_size: IO.iodata_length(Container.serialize!(ftyp_box))}
+    writer.writer_mod.write(writer.writer_state, [ftyp_box_data, mdat_box_data])
+
+    %__MODULE__{writer | ftyp_size: IO.iodata_length(ftyp_box_data)}
   end
 
   @doc """
@@ -156,13 +158,14 @@ defmodule ExMP4.Writer do
 
     case fast_start do
       false ->
-        write(writer, Container.serialize!(movie_box))
-        pwrite(writer, after_ftyp, <<mdat_total_size::32>>, false)
+        writer.writer_mod.write(writer.writer_state, Container.serialize!(movie_box))
+        writer.writer_mod.write(writer.writer_state, <<mdat_total_size::32>>, after_ftyp)
 
       true ->
-        movie_box = Movie.adjust_chunk_offsets(movie_box)
-        pwrite(writer, after_ftyp, <<mdat_total_size::32>>, false)
-        pwrite(writer, after_ftyp, Container.serialize!(movie_box), true)
+        movie_box = Movie.adjust_chunk_offsets(movie_box) |> Container.serialize!()
+
+        writer.writer_mod.write(writer.writer_state, <<mdat_total_size::32>>, after_ftyp)
+        writer.writer_mod.write(writer.writer_state, movie_box, after_ftyp, true)
     end
 
     close(writer)
@@ -192,7 +195,7 @@ defmodule ExMP4.Writer do
 
   defp flush_chunk(writer, track) do
     {chunk_data, track} = Track.flush_chunk(track, chunk_offset(writer))
-    write(writer, chunk_data)
+    writer.writer_mod.write(writer.writer_state, chunk_data)
 
     writer = put_in(writer, [:tracks, track.id], track)
     %{writer | mdat_size: writer.mdat_size + byte_size(chunk_data)}
@@ -201,11 +204,6 @@ defmodule ExMP4.Writer do
   defp chunk_offset(%{ftyp_size: ftyp_size, mdat_size: mdat_size}) do
     ftyp_size + @mdat_header_size + mdat_size
   end
-
-  defp write(%{writer_mod: writer, writer_state: state}, data), do: writer.write(state, data)
-
-  defp pwrite(%{writer_mod: writer, writer_state: state}, loc, data, insert?),
-    do: writer.pwrite(state, loc, data, insert?)
 
   defp close(%__MODULE__{writer_mod: writer, writer_state: state}), do: writer.close(state)
 

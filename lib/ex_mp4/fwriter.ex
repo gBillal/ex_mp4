@@ -65,7 +65,7 @@ defmodule ExMP4.FWriter do
   """
   @spec new(Path.t(), [ExMP4.Track.t()], new_opts()) :: {:ok, t()} | {:error, term()}
   def new(filename, tracks, opts \\ []) do
-    do_new_writer(filename, ExMP4.Write.File, tracks, opts)
+    do_new_writer(filename, ExMP4.FragDataWriter.File, tracks, opts)
   end
 
   @doc """
@@ -160,7 +160,10 @@ defmodule ExMP4.FWriter do
       |> Enum.map(&Enum.reverse(writer.fragments_data[&1]))
       |> MediaData.assemble()
 
-    write(writer, [Container.serialize!(movie_fragment), Container.serialize!(media_data)])
+    writer.writer_mod.write_fragment(writer.writer_state, [
+      Container.serialize!(movie_fragment),
+      Container.serialize!(media_data)
+    ])
 
     %{
       writer
@@ -184,11 +187,10 @@ defmodule ExMP4.FWriter do
         |> Enum.max()
         |> then(&Movie.update_fragment_duration(writer.movie_box, &1))
 
-      writer.writer_mod.pwrite(
+      writer.writer_mod.write(
         writer.writer_state,
         {:bof, writer.ftyp_box_size},
-        Container.serialize!(movie_box),
-        false
+        Container.serialize!(movie_box)
       )
     end
 
@@ -196,7 +198,7 @@ defmodule ExMP4.FWriter do
   end
 
   defp do_new_writer(input, writer_mod, tracks, opts) do
-    with {:ok, reader_state} <- writer_mod.open(input) do
+    with {:ok, writer_state} <- writer_mod.open(input) do
       opts = validate_new_opts(opts)
 
       tracks =
@@ -216,8 +218,8 @@ defmodule ExMP4.FWriter do
 
       writer =
         %__MODULE__{
-          writer_mod: ExMP4.Write.File,
-          writer_state: reader_state,
+          writer_mod: writer_mod,
+          writer_state: writer_state,
           tracks: tracks
         }
 
@@ -254,7 +256,7 @@ defmodule ExMP4.FWriter do
     ftyp_box_data = Container.serialize!(ftyp_box)
     movie_box_data = Container.serialize!(movie_box)
 
-    write(writer, [ftyp_box_data, movie_box_data])
+    writer.writer_mod.write_init_header(writer.writer_state, [ftyp_box_data, movie_box_data])
 
     %{
       writer
@@ -263,8 +265,6 @@ defmodule ExMP4.FWriter do
         movie_box: if(fragment_duration == 0, do: movie_box)
     }
   end
-
-  defp write(%{writer_mod: writer, writer_state: state}, data), do: writer.write(state, data)
 
   defp fragment_duration(false), do: nil
   defp fragment_duration(true), do: 0
