@@ -15,8 +15,19 @@ defmodule ExMP4.Box.Movie do
     * zero or one movie extends box (`mvex` atom)
   """
   alias ExMP4.Box.Track, as: TrackBox
-  alias ExMP4.{Container, Track}
+  alias ExMP4.{Container, Track, Track.FragmentedSampleTable}
 
+  @type movie_header :: %{
+          :duration => integer(),
+          :timescale => integer(),
+          :creation_time => DateTime.t(),
+          :modification_time => DateTime.t(),
+          :fragmented? => boolean()
+        }
+
+  @doc """
+  Assembles a list of tracks into a `moov` box.
+  """
   @spec assemble([Track.t()], Keyword.t()) :: Container.t()
   @spec assemble([Track.t()], Keyword.t(), Container.t()) :: Container.t()
   def assemble(tracks, header_opts, extensions \\ []) do
@@ -26,6 +37,43 @@ defmodule ExMP4.Box.Movie do
     track_boxes = Enum.flat_map(tracks, &TrackBox.assemble/1)
 
     [moov: %{children: header ++ track_boxes ++ extensions, fields: %{}}]
+  end
+
+  @doc """
+  Deserializes and unpacks a `moov` box data.
+
+  The return type is a tuple with the first element as the movie header and the
+  second element as a list of tracks.
+  """
+  @spec unpack(Container.t()) :: {movie_header(), [Track.t()]}
+  def unpack(box) do
+    mvhd = Container.get_box(box, [:moov, :mvhd])
+
+    movie_header = %{
+      duration: mvhd[:fields][:duration],
+      timescale: mvhd[:fields][:timescale],
+      creation_time: DateTime.add(ExMP4.base_date(), mvhd[:fields][:creation_time]),
+      modification_time: DateTime.add(ExMP4.base_date(), mvhd[:fields][:modification_time]),
+      fragmented?: get_in(box, [:moov, :children, :mvex]) != nil
+    }
+
+    tracks =
+      box[:moov][:children]
+      |> Keyword.get_values(:trak)
+      |> Enum.map(&TrackBox.unpack/1)
+      |> Map.new(&{&1.id, &1})
+
+    tracks =
+      if movie_header.fragmented? do
+        get_in(box, [:moov, :children, :mvex, :children])
+        |> Keyword.get_values(:trex)
+        |> Enum.map(&unpack_trex(tracks[&1.fields.track_id], &1))
+        |> Map.new(&{&1.id, &1})
+      else
+        tracks
+      end
+
+    {movie_header, Map.values(tracks)}
   end
 
   @doc false
@@ -97,5 +145,17 @@ defmodule ExMP4.Box.Movie do
         }
       }
     ]
+  end
+
+  defp unpack_trex(track, %{fields: fields}) do
+    %{
+      track
+      | frag_sample_table: %FragmentedSampleTable{
+          default_sample_description_id: fields.default_sample_duration,
+          default_sample_duration: fields.default_sample_duration,
+          default_sample_flags: fields.default_sample_flags,
+          default_sample_size: fields.default_sample_size
+        }
+    }
   end
 end

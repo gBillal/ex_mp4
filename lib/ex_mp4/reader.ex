@@ -219,21 +219,12 @@ defmodule ExMP4.Reader do
   end
 
   defp do_parse_metadata(reader, %{name: :moov} = header, {data, rest}) do
-    box = read_and_parse_box(reader, header, {data, rest})
-    mvhd = Container.get_box(box, [:moov, :mvhd])
-
-    reader =
+    {header, tracks} =
       reader
-      |> fragmented?(box)
-      |> get_tracks(box)
+      |> read_and_parse_box(header, {data, rest})
+      |> ExMP4.Box.Movie.unpack()
 
-    %{
-      reader
-      | duration: mvhd[:fields][:duration],
-        timescale: mvhd[:fields][:timescale],
-        creation_time: DateTime.add(ExMP4.base_date(), mvhd[:fields][:creation_time]),
-        modification_time: DateTime.add(ExMP4.base_date(), mvhd[:fields][:modification_time])
-    }
+    %{Map.merge(reader, header) | tracks: Map.new(tracks, &{&1.id, &1})}
   end
 
   defp do_parse_metadata(reader, %{name: :moof} = header, {data, rest}) do
@@ -261,28 +252,6 @@ defmodule ExMP4.Reader do
   defp skip(reader, header, rest) do
     amount_to_skip = header.content_size - byte_size(rest)
     reader.reader_mod.seek(reader.reader_state, {:cur, amount_to_skip})
-  end
-
-  defp fragmented?(reader, moov_box) do
-    %{reader | fragmented?: not is_nil(get_in(moov_box, [:moov, :children, :mvex]))}
-  end
-
-  defp get_tracks(reader, box) do
-    tracks =
-      box[:moov][:children]
-      |> Keyword.get_values(:trak)
-      |> Enum.map(&Track.from_trak_box/1)
-      |> Map.new(&{&1.id, &1})
-
-    if reader.fragmented? do
-      get_in(box, [:moov, :children, :mvex, :children])
-      |> Keyword.get_values(:trex)
-      |> Enum.map(&Track.from_trex(tracks[&1.fields.track_id], &1))
-      |> Map.new(&{&1.id, &1})
-      |> then(&%{reader | tracks: &1})
-    else
-      %{reader | tracks: tracks}
-    end
   end
 
   defp max_duration(reader, tracks) do

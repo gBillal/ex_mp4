@@ -27,7 +27,7 @@ defmodule ExMP4.FragDataWriter do
   Invoked to handle writing while seeking into the file.
 
   This is an optional callback, only called by the `ExMP4.FWriter` to
-  update the fragments duration in case `mehd` need to be included.s
+  update the fragments duration in case `mehd` is present.
   """
   @callback write(state(), data :: iodata(), location()) :: :ok
 

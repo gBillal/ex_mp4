@@ -126,8 +126,8 @@ defmodule ExMP4.WriterTest do
       )
 
     assert :ok =
-             writer
-             |> Writer.write_sample(video_sample_1)
+             [video_sample_1]
+             |> Enum.into(writer)
              |> Writer.write_trailer()
 
     assert {:ok, data} = File.read(filepath)

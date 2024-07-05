@@ -46,6 +46,32 @@ defmodule ExMP4.ReaderTest do
            } =
              audio_track
 
+    # read sample metadata
+
+    assert samples = Reader.stream(reader) |> Enum.take(2)
+    assert length(samples) == 2
+
+    assert [
+             %ExMP4.SampleMetadata{
+               track_id: 1,
+               pts: 0,
+               dts: 0,
+               duration: 512,
+               sync?: true,
+               offset: 1500,
+               size: 751
+             },
+             %ExMP4.SampleMetadata{
+               track_id: 2,
+               pts: 0,
+               dts: 0,
+               duration: 1024,
+               sync?: true,
+               offset: 1321,
+               size: 179
+             }
+           ] = Enum.sort_by(samples, & &1.track_id)
+
     assert %Sample{
              pts: 0,
              dts: 0,

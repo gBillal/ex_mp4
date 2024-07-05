@@ -10,8 +10,8 @@ defmodule ExMP4.Box.SampleTable do
 
     sample_description = assemble_sample_description(track)
     sample_deltas = table.decoding_deltas
-    composition_offsets = table.composition_offsets
     maybe_sample_sync = maybe_sample_sync(table)
+    maybe_sample_composition_offsets = maybe_sample_composition_offsets(table)
     sample_to_chunk = assemble_sample_to_chunk(table)
     sample_sizes = assemble_sample_sizes(table)
     chunk_offsets = assemble_chunk_offsets(table)
@@ -35,16 +35,9 @@ defmodule ExMP4.Box.SampleTable do
                 entry_count: length(sample_deltas),
                 entry_list: sample_deltas
               }
-            },
-            ctts: %{
-              fields: %{
-                version: 0,
-                flags: 0,
-                entry_count: length(composition_offsets),
-                entry_list: composition_offsets
-              }
             }
           ] ++
+            maybe_sample_composition_offsets ++
             maybe_sample_sync ++
             [
               stsc: %{
@@ -164,6 +157,22 @@ defmodule ExMP4.Box.SampleTable do
 
   defp media_tag(tag, :h264), do: {tag || :avc1, :avcC}
   defp media_tag(tag, :h265), do: {tag || :hev1, :hvcC}
+
+  defp maybe_sample_composition_offsets(%{composition_offsets: [%{sample_composition_offset: 0}]}),
+    do: []
+
+  defp maybe_sample_composition_offsets(%{composition_offsets: composition_offsets}) do
+    [
+      ctts: %{
+        fields: %{
+          version: 0,
+          flags: 0,
+          entry_count: length(composition_offsets),
+          entry_list: composition_offsets
+        }
+      }
+    ]
+  end
 
   defp maybe_sample_sync(%{sync_samples: []}), do: []
 
