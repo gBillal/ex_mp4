@@ -8,8 +8,6 @@ defmodule ExMP4 do
   @base_date ~U(1904-01-01 00:00:00Z)
   @movie_timescale 1000
 
-  alias ExMP4.{FWriter, Reader}
-
   @spec base_date() :: DateTime.t()
   def base_date(), do: @base_date
 
