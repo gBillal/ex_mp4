@@ -31,6 +31,7 @@ defmodule ExMP4.Track.Fragment do
                 current_run: nil
               ]
 
+  @spec new(Track.id()) :: t()
   @spec new(Track.id(), Keyword.t()) :: t()
   def new(track_id, opts \\ []) do
     fragment = struct!(__MODULE__, Keyword.put(opts, :track_id, track_id))
@@ -57,6 +58,7 @@ defmodule ExMP4.Track.Fragment do
     |> maybe_remove_composition_offsets()
     |> maybe_set_default_sample_duration()
     |> maybe_set_default_sample_size()
+    |> maybe_remove_flags()
     |> then(&%{&1 | runs: &1.runs ++ [&1.current_run], current_run: nil})
   end
 
@@ -123,6 +125,15 @@ defmodule ExMP4.Track.Fragment do
       if Enum.all?(run.sample_composition_offsets, &(&1 == 0)),
         do: %{run | sample_composition_offsets: nil},
         else: %{run | sample_composition_offsets: Enum.reverse(run.sample_composition_offsets)}
+
+    %{fragment | current_run: run}
+  end
+
+  defp maybe_remove_flags(%{current_run: run} = fragment) do
+    run =
+      if run.sync_samples == <<0::size(run.sample_count)>>,
+        do: %{run | sync_samples: nil},
+        else: run
 
     %{fragment | current_run: run}
   end

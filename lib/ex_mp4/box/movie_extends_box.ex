@@ -37,12 +37,9 @@ defmodule ExMP4.Box.MovieExtendsBox do
           default_sample_description_index: 1,
           default_sample_duration: 0,
           default_sample_size: 0,
-          default_sample_flags: default_flags(track.type)
+          default_sample_flags: 0
         }
       }
     ]
   end
-
-  defp default_flags(:video), do: 0x10000
-  defp default_flags(_media_type), do: 0
 end

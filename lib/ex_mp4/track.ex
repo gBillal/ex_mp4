@@ -68,24 +68,6 @@ defmodule ExMP4.Track do
     timescale: 1000
   ]
 
-  @doc false
-  @spec from_trak_box(box()) :: t()
-  def from_trak_box(trak), do: ExMP4.Box.Track.unpack(trak)
-
-  @doc false
-  @spec from_trex(t(), box()) :: t()
-  def from_trex(track, %{fields: fields}) do
-    %{
-      track
-      | frag_sample_table: %FragmentedSampleTable{
-          default_sample_description_id: fields.default_sample_duration,
-          default_sample_duration: fields.default_sample_duration,
-          default_sample_flags: fields.default_sample_flags,
-          default_sample_size: fields.default_sample_size
-        }
-    }
-  end
-
   @spec add_fragment(t(), ExMP4.Track.Fragment.t()) :: t()
   def add_fragment(track, fragment) do
     sample_table = FragmentedSampleTable.add_fragment(track.frag_sample_table, fragment)
