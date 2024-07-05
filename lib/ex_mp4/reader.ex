@@ -96,19 +96,26 @@ defmodule ExMP4.Reader do
   @max_header_size 8
 
   @doc """
-  Create a new reader from an mp4 file.
+  Create a new MP4 reader.
+
+  The input may be a file name, a binary `{:binary, data}` or any other input with
+  an module implementing `ExMP4.DataReader` behaviour.
   """
-  @spec new(Path.t()) :: {:ok, t()} | {:error, any()}
-  def new(filename) do
-    do_create_reader(filename, ExMP4.DataReader.File)
+  @spec new(any(), module()) :: {:ok, t()} | {:error, any()}
+  def new(input, _module \\ ExMP4.DataReader.File)
+
+  def new({:binary, data}, module) do
+    do_create_reader({:binary, data}, module)
   end
+
+  def new(filename, module), do: do_create_reader(filename, module)
 
   @doc """
   The same as `new/1`, but raises if it fails.
   """
-  @spec new!(Path.t()) :: t()
-  def new!(filename) do
-    case new(filename) do
+  @spec new!(any(), module()) :: t()
+  def new!(filename, module \\ ExMP4.DataReader.File) do
+    case new(filename, module) do
       {:ok, reader} -> reader
       {:error, reason} -> raise "could not open reader: #{inspect(reason)}"
     end

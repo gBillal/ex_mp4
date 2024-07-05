@@ -62,18 +62,20 @@ defmodule ExMP4.FWriter do
       for presentations where the total duration is not available.
 
       If an integer, it's the total duration in the `movie` timescale and it'll be set in the `mehd` box.
+
+  The last argument is an optional module implementing `ExMP4.FragDataWriter`.
   """
-  @spec new(Path.t(), [ExMP4.Track.t()], new_opts()) :: {:ok, t()} | {:error, term()}
-  def new(filename, tracks, opts \\ []) do
-    do_new_writer(filename, ExMP4.FragDataWriter.File, tracks, opts)
+  @spec new(Path.t(), [ExMP4.Track.t()], new_opts(), module()) :: {:ok, t()} | {:error, term()}
+  def new(filename, tracks, opts \\ [], module \\ ExMP4.FragDataWriter.File) do
+    do_new_writer(filename, module, tracks, opts)
   end
 
   @doc """
   The same as `new/2`, but raises if it fails.
   """
-  @spec new!(Path.t(), [ExMP4.Track.t()], new_opts()) :: t()
-  def new!(filepath, tracks, opts \\ []) do
-    case new(filepath, tracks, opts) do
+  @spec new!(Path.t(), [ExMP4.Track.t()], new_opts(), module()) :: t()
+  def new!(filepath, tracks, opts \\ [], module \\ ExMP4.FragDataWriter.File) do
+    case new(filepath, tracks, opts, module) do
       {:ok, writer} -> writer
       {:error, reason} -> raise "could not open writer: #{inspect(reason)}"
     end

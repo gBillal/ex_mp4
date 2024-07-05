@@ -37,18 +37,21 @@ defmodule ExMP4.Writer do
 
   The following options can be provided:
     * `fast_start` - Move the `moov` box to the beginning of the file. Defaults to: `false`
+
+  By default the writer writes the data to the file system, this behaviour can be changed by
+  providing a module implementing `ExMP4.DataWriter` in the third argument.
   """
   @spec new(Path.t(), new_opts()) :: {:ok, t()} | {:error, reason :: any()}
-  def new(filepath, opts \\ []) do
-    do_new_writer(filepath, ExMP4.DataWriter.File, opts)
+  def new(filepath, opts \\ [], module \\ ExMP4.DataWriter.File) do
+    do_new_writer(filepath, module, opts)
   end
 
   @doc """
   The same as `new/2`, but raises if it fails.
   """
-  @spec new!(Path.t(), new_opts()) :: t()
-  def new!(filepath, opts \\ []) do
-    case new(filepath, opts) do
+  @spec new!(Path.t(), new_opts(), module()) :: t()
+  def new!(filepath, opts \\ [], module \\ ExMP4.DataWriter.File) do
+    case new(filepath, opts, module) do
       {:ok, writer} -> writer
       {:error, reason} -> raise "could not open writer: #{inspect(reason)}"
     end

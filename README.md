@@ -18,10 +18,13 @@ The package can be installed by adding `ex_mp4` to your list of dependencies in 
 ```elixir
 def deps do
   [
-    {:ex_mp4, "~> 0.3.0"}
+    {:ex_mp4, "~> 0.4.0"}
   ]
 end
 ```
+
+## API
+The API is not yet stable, so breaking changes may occur when upgrading minor version.
 
 ## Usage
 
