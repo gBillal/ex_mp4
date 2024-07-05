@@ -189,8 +189,8 @@ defmodule ExMP4.FWriter do
 
       writer.writer_mod.write(
         writer.writer_state,
-        {:bof, writer.ftyp_box_size},
-        Container.serialize!(movie_box)
+        Container.serialize!(movie_box),
+        {:bof, writer.ftyp_box_size}
       )
     end
 
