@@ -100,7 +100,7 @@ defmodule ExMP4.Reader do
   """
   @spec new(Path.t()) :: {:ok, t()} | {:error, any()}
   def new(filename) do
-    do_create_reader(filename, ExMP4.Read.File)
+    do_create_reader(filename, ExMP4.DataReader.File)
   end
 
   @doc """
@@ -327,7 +327,7 @@ defmodule ExMP4.Reader do
   end
 
   defp do_get_sample(metadata, %{reader_mod: reader, reader_state: state}) do
-    payload = reader.pread(state, metadata.offset, metadata.size)
+    payload = reader.read(state, metadata.size, metadata.offset)
 
     %Sample{
       track_id: metadata.track_id,
