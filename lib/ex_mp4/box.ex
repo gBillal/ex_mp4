@@ -3,6 +3,8 @@ defprotocol ExMP4.Box do
   A protocol defining the behaviour of an ISOBMFF box.
   """
 
+  @fallback_to_any true
+
   @doc """
   Serialize a box into a io list.
   """
@@ -22,4 +24,22 @@ defprotocol ExMP4.Box do
   """
   @spec size(t()) :: integer()
   def size(box)
+end
+
+defimpl ExMP4.Box, for: List do
+  def size(list), do: Enum.map(list, &ExMP4.Box.size/1) |> Enum.sum()
+
+  def serialize(list), do: Enum.map(list, &ExMP4.Box.serialize/1)
+
+  def parse(_, _) do
+  end
+end
+
+defimpl ExMP4.Box, for: Any do
+  def size(_), do: 0
+
+  def serialize(_), do: <<>>
+
+  def parse(_, _) do
+  end
 end

@@ -60,15 +60,14 @@ defmodule ExMP4.Box.Avc do
     end
 
     def serialize(box) do
-      avcC = <<byte_size(box.avcC) + 8::32, "avcC", box.avcC::binary>>
-      pasp = if box.pasp, do: ExMP4.Box.serialize(box.pasp), else: <<>>
+      avcc = <<byte_size(box.avcC) + 8::32, "avcC", box.avcC::binary>>
 
       data =
         <<size(box)::32, box.tag || "avc1"::binary, 0::48, box.data_reference_index::16, 0::128,
           box.width::16, box.height::16, box.horizresolution::32, box.vertresolution::32, 0::32,
           box.frame_count::16, box.compressor_name::binary, box.depth::16, -1::16-signed>>
 
-      [data, avcC, pasp]
+      [data, avcc, ExMP4.Box.serialize(box.pasp)]
     end
 
     defp do_parse(box, <<>>), do: box
