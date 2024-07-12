@@ -17,7 +17,8 @@ defmodule ExMP4.Box.Mdia do
 
   defimpl ExMP4.Box do
     def size(box) do
-      ExMP4.header_size() + ExMP4.Box.size(box.mdhd) + ExMP4.Box.size(box.hdlr) + ExMP4.Box.size(box.minf)
+      ExMP4.header_size() + ExMP4.Box.size(box.mdhd) + ExMP4.Box.size(box.hdlr) +
+        ExMP4.Box.size(box.minf)
     end
 
     def parse(box, data), do: do_parse(box, data)

@@ -16,8 +16,8 @@ defmodule ExMP4.Box.Tkhd do
           alternate_group: integer(),
           volume: integer(),
           matrix: [integer()],
-          width: integer(),
-          height: integer()
+          width: {integer(), integer()},
+          height: {integer(), integer()}
         }
 
   defstruct version: 0,
@@ -30,8 +30,8 @@ defmodule ExMP4.Box.Tkhd do
             alternate_group: 0,
             volume: 0,
             matrix: [0x00010000, 0, 0, 0, 0x00010000, 0, 0, 0, 0x40000000],
-            width: 0,
-            height: 0
+            width: {0, 0},
+            height: {0, 0}
 
   defimpl ExMP4.Box do
     def size(%{version: 0}), do: MP4.full_box_header_size() + 80
@@ -45,6 +45,9 @@ defmodule ExMP4.Box.Tkhd do
             volume::16, _reserved3::16, matrix::binary-size(36), width::32, height::32>>
         ) do
       matrix = for <<value::32 <- matrix>>, do: value
+
+      width = {Bitwise.bsr(width, 16), Bitwise.band(width, 0xFFFF)}
+      height = {Bitwise.bsr(height, 16), Bitwise.band(height, 0xFFFF)}
 
       %{
         box
@@ -63,18 +66,17 @@ defmodule ExMP4.Box.Tkhd do
       }
     end
 
-    def serialize(box) do
+    def serialize(%{width: {w1, w2}, height: {h1, h2}} = box) do
       v = box.version + 1
-      size = size(box)
 
       box_data =
-        <<size::32, "tkhd", box.version::8, box.flags::24,
+        <<size(box)::32, "tkhd", box.version::8, box.flags::24,
           from_date(box.creation_time)::size(32 * v),
           from_date(box.modification_time)::size(32 * v), box.track_id::32, 0::32,
           box.duration::size(32 * v), 0::64, box.layer::16, box.alternate_group::16,
           box.volume::16, 0::16>>
 
-      [box_data, Enum.map(box.matrix, &<<&1::32>>), <<box.width::32, box.height::32>>]
+      [box_data, Enum.map(box.matrix, &<<&1::32>>), <<w1::16, w2::16, h1::16, h2::16>>]
     end
   end
 end

@@ -23,7 +23,8 @@ defmodule ExMP4.Box.Minf do
       vmhd_size = if box.vmhd, do: ExMP4.Box.size(box.vmhd), else: 0
       smhd_size = if box.smhd, do: ExMP4.Box.size(box.smhd), else: 0
 
-      ExMP4.header_size() + vmhd_size + smhd_size + ExMP4.Box.size(box.dinf) + ExMP4.Box.size(box.stbl)
+      ExMP4.header_size() + vmhd_size + smhd_size + ExMP4.Box.size(box.dinf) +
+        ExMP4.Box.size(box.stbl)
     end
 
     def parse(box, data), do: do_parse(box, data)

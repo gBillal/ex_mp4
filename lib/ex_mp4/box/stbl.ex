@@ -42,7 +42,8 @@ defmodule ExMP4.Box.Stbl do
       stco_size = if box.stco, do: ExMP4.Box.size(box.stco), else: 0
       co64_size = if box.co64, do: ExMP4.Box.size(box.co64), else: 0
 
-      ExMP4.header_size() + ExMP4.Box.size(box.stsd) + ExMP4.Box.size(box.stts) + ExMP4.Box.size(box.stsc) +
+      ExMP4.header_size() + ExMP4.Box.size(box.stsd) + ExMP4.Box.size(box.stts) +
+        ExMP4.Box.size(box.stsc) +
         ctts_size + stss_size +
         stsz_size + stz2_size +
         stco_size + co64_size
