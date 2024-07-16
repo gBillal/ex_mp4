@@ -9,7 +9,7 @@ defmodule ExMP4.ReaderTest do
     assert {:ok, reader} = Reader.new("test/fixtures/minimal.mp4")
 
     assert reader.major_brand == "isom"
-    assert reader.major_brand_version == 512
+    assert reader.minor_version == 512
     assert reader.compatible_brands == ["isom", "iso2", "avc1", "mp41"]
     assert reader.duration == 62
     assert reader.timescale == 1_000
@@ -98,7 +98,7 @@ defmodule ExMP4.ReaderTest do
     assert {:ok, reader} = Reader.new("test/fixtures/fragmented.mp4")
 
     assert reader.major_brand == "isom"
-    assert reader.major_brand_version == 1
+    assert reader.minor_version == 1
     assert reader.compatible_brands == ["isom", "iso2", "avc1", "mp41"]
     assert reader.duration == 107
     assert reader.timescale == 1_000

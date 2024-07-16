@@ -8,23 +8,25 @@ defmodule ExMP4.Box.Stsd do
 
   import ExMP4.Box.Utils, only: [parse_header: 1]
 
-  alias ExMP4.Box.{Avc, Mp4a}
+  alias ExMP4.Box
+  alias ExMP4.Box.{Avc, Hevc, Mp4a}
 
   @type t :: %__MODULE__{
           version: integer(),
           flags: integer(),
           avc1: Avc.t() | nil,
           avc3: Avc.t() | nil,
-          mp4a: Mp4a.t() | nil
+          mp4a: Mp4a.t() | nil,
+          hvc1: Hevc.t() | nil,
+          hev1: Hevc.t() | nil
         }
 
-  defstruct version: 0, flags: 0, avc1: nil, avc3: nil, mp4a: nil
+  defstruct version: 0, flags: 0, avc1: nil, avc3: nil, mp4a: nil, hvc1: nil, hev1: nil
 
   defimpl ExMP4.Box do
     def size(box) do
-      avc_size = if box.avc1 || box.avc3, do: ExMP4.Box.size(box.avc1 || box.avc3), else: 0
-      mp4a_size = if box.mp4a, do: ExMP4.Box.size(box.mp4a), else: 0
-      MP4.full_box_header_size() + 4 + avc_size + mp4a_size
+      MP4.full_box_header_size() + 4 + Box.size(box.avc1) + Box.size(box.avc3) +
+        Box.size(box.mp4a) + +Box.size(box.hvc1) + +Box.size(box.hev1)
     end
 
     def parse(box, <<version::8, flags::24, 1::32, rest::binary>>) do
@@ -33,10 +35,14 @@ defmodule ExMP4.Box.Stsd do
     end
 
     def serialize(box) do
-      avc_data = if box.avc1 || box.avc3, do: ExMP4.Box.serialize(box.avc1 || box.avc3), else: []
-      mp4a_data = if box.mp4a, do: ExMP4.Box.serialize(box.mp4a), else: []
-
-      [<<size(box)::32, "stsd", box.version::8, box.flags::24, 1::32>>, avc_data, mp4a_data]
+      [
+        <<size(box)::32, "stsd", box.version::8, box.flags::24, 1::32>>,
+        Box.serialize(box.avc1),
+        Box.serialize(box.avc3),
+        Box.serialize(box.mp4a),
+        Box.serialize(box.hvc1),
+        Box.serialize(box.hev1)
+      ]
     end
 
     defp do_parse(box, <<>>), do: box
@@ -54,6 +60,14 @@ defmodule ExMP4.Box.Stsd do
 
           {"mp4a", box_data, rest} ->
             box = %{box | mp4a: ExMP4.Box.parse(%Mp4a{}, box_data)}
+            {box, rest}
+
+          {"hvc1", box_data, rest} ->
+            box = %{box | hvc1: ExMP4.Box.parse(%Hevc{}, box_data)}
+            {box, rest}
+
+          {"hev1", box_data, rest} ->
+            box = %{box | hev1: ExMP4.Box.parse(%Hevc{}, box_data)}
             {box, rest}
 
           {_box_name, _box_data, rest} ->

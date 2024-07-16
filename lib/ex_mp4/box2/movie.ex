@@ -31,8 +31,6 @@ defmodule ExMP4.Box.Movie do
   @spec assemble([Track.t()], Keyword.t()) :: Container.t()
   @spec assemble([Track.t()], Keyword.t(), Container.t()) :: Container.t()
   def assemble(tracks, header_opts, extensions \\ []) do
-    tracks = Enum.map(tracks, &Track.finalize(&1, ExMP4.movie_timescale()))
-
     header = movie_header(tracks, header_opts)
     track_boxes = Enum.flat_map(tracks, &TrackBox.assemble/1)
 

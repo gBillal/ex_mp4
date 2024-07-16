@@ -37,6 +37,9 @@ defmodule ExMP4.Box.Trak do
           {"mdia", box_data, rest} ->
             box = %{box | mdia: ExMP4.Box.parse(%Mdia{}, box_data)}
             {box, rest}
+
+          {_other, _box_data, rest} ->
+            {box, rest}
         end
 
       do_parse(box, rest)

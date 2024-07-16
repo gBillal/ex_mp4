@@ -10,7 +10,7 @@ defmodule ExMP4.Reader do
     * `creation_time` - Creation date time of the presentation.
     * `modification_time` - Modification date time of the presentation.
     * `major_brand`
-    * `major_brand_version`
+    * `minor_version`
     * `compatible_brands`
 
 
@@ -67,7 +67,7 @@ defmodule ExMP4.Reader do
           duration: non_neg_integer(),
           timescale: non_neg_integer(),
           major_brand: binary(),
-          major_brand_version: integer(),
+          minor_version: integer(),
           compatible_brands: [binary()],
           fragmented?: boolean(),
           creation_time: DateTime.t(),
@@ -83,7 +83,7 @@ defmodule ExMP4.Reader do
     :duration,
     :timescale,
     :major_brand,
-    :major_brand_version,
+    :minor_version,
     :compatible_brands,
     :fragmented?,
     :creation_time,
@@ -214,24 +214,34 @@ defmodule ExMP4.Reader do
     end
   end
 
-  defp do_parse_metadata(reader, %{name: :ftyp} = header, {data, rest}) do
-    [ftyp: box] = read_and_parse_box(reader, header, {data, rest})
+  defp do_parse_metadata(reader, %{name: :ftyp} = header, {_data, rest}) do
+    ftyp = ExMP4.Box.parse(%ExMP4.Box.Ftyp{}, read_box(reader, header, rest))
 
     %{
       reader
-      | major_brand: box[:fields][:major_brand],
-        major_brand_version: box[:fields][:major_brand_version],
-        compatible_brands: box[:fields][:compatible_brands]
+      | major_brand: ftyp.major_brand,
+        minor_version: ftyp.minor_version,
+        compatible_brands: ftyp.compatible_brands
     }
   end
 
-  defp do_parse_metadata(reader, %{name: :moov} = header, {data, rest}) do
-    {header, tracks} =
-      reader
-      |> read_and_parse_box(header, {data, rest})
-      |> ExMP4.Box.Movie.unpack()
+  defp do_parse_metadata(reader, %{name: :moov} = header, {_data, rest}) do
+    moov = ExMP4.Box.parse(%ExMP4.Box.Moov{}, read_box(reader, header, rest))
 
-    %{Map.merge(reader, header) | tracks: Map.new(tracks, &{&1.id, &1})}
+    tracks =
+      moov.trak
+      |> Enum.map(&Track.from_trak/1)
+      |> Map.new(&{&1.id, &1})
+
+    %{
+      reader
+      | duration: moov.mvhd.duration,
+        timescale: moov.mvhd.timescale,
+        creation_time: moov.mvhd.creation_time,
+        modification_time: moov.mvhd.modification_time,
+        fragmented?: not is_nil(moov.mvex),
+        tracks: tracks
+    }
   end
 
   defp do_parse_metadata(reader, %{name: :moof} = header, {data, rest}) do
@@ -247,6 +257,12 @@ defmodule ExMP4.Reader do
   defp do_parse_metadata(reader, header, {_data, rest}) do
     skip(reader, header, rest)
     reader
+  end
+
+  defp read_box(reader, header, rest) do
+    amount_to_read = header.content_size - byte_size(rest)
+    box_data = reader.reader_mod.read(reader.reader_state, amount_to_read)
+    rest <> box_data
   end
 
   defp read_and_parse_box(reader, header, {header_data, rest}) do

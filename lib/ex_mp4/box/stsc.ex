@@ -14,7 +14,8 @@ defmodule ExMP4.Box.Stsc do
             %{
               :first_chunk => integer(),
               :samples_per_chunk => integer(),
-              :sample_description_index => integer()
+              :sample_description_index => integer(),
+              :first_sample => integer() | nil
             }
           ]
         }
@@ -24,21 +25,40 @@ defmodule ExMP4.Box.Stsc do
   defimpl ExMP4.Box do
     def size(box), do: MP4.full_box_header_size() + 4 + 12 * length(box.entries)
 
-    def parse(box, <<version::8, flags::24, _sample_count::32, entries::binary>>) do
-      entries =
-        for <<first_chunk::32, samples_per_chunk::32, sample_description_index::32 <- entries>> do
-          %{
+    def parse(box, <<version::8, flags::24, 0::32>>) do
+      %{box | version: version, flags: flags}
+    end
+
+    def parse(box, <<version::8, flags::24, entry_count::32, entries::binary>>) do
+      {entries, _first_sample, <<>>} =
+        Enum.reduce(1..entry_count, {[], 1, entries}, fn _idx, {entries, first_sample, data} ->
+          <<first_chunk::32, samples_per_chunk::32, sample_description_index::32, rest::binary>> =
+            data
+
+          first_sample =
+            case entries do
+              [] ->
+                first_sample
+
+              [entry | _rest] ->
+                (first_chunk - entry.first_chunk) * entry.samples_per_chunk + first_sample
+            end
+
+          entry = %{
             first_chunk: first_chunk,
             samples_per_chunk: samples_per_chunk,
-            sample_description_index: sample_description_index
+            sample_description_index: sample_description_index,
+            first_sample: first_sample
           }
-        end
+
+          {[entry | entries], first_sample, rest}
+        end)
 
       %{
         box
         | version: version,
           flags: flags,
-          entries: entries
+          entries: Enum.reverse(entries)
       }
     end
 

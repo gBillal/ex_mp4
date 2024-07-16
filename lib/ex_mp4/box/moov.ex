@@ -9,30 +9,26 @@ defmodule ExMP4.Box.Moov do
 
   @type t :: %__MODULE__{
           mvhd: Mvhd.t(),
-          traks: [Trak.t()],
+          trak: [Trak.t()],
           mvex: Mvex.t() | nil
         }
 
-  defstruct mvhd: %Mvhd{}, traks: [], mvex: nil
+  defstruct mvhd: %Mvhd{}, trak: [], mvex: nil
 
   defimpl ExMP4.Box do
     def size(box) do
-      mvex_size = if box.mvex, do: ExMP4.Box.size(box.mvex), else: 0
-
-      trak_size = Enum.map(box.traks, &ExMP4.Box.size/1) |> Enum.sum()
-      ExMP4.header_size() + ExMP4.Box.size(box.mvhd) + trak_size + mvex_size
+      ExMP4.header_size() + ExMP4.Box.size(box.mvhd) + ExMP4.Box.size(box.trak) +
+        ExMP4.Box.size(box.mvex)
     end
 
     def parse(box, data), do: do_parse(box, data)
 
     def serialize(box) do
-      mvex_data = if box.mvex, do: ExMP4.Box.serialize(box.mvex), else: <<>>
-
       [
         <<size(box)::32, "moov">>,
         ExMP4.Box.serialize(box.mvhd),
-        Enum.map(box.traks, &ExMP4.Box.serialize/1),
-        mvex_data
+        ExMP4.Box.serialize(box.trak),
+        ExMP4.Box.serialize(box.mvex)
       ]
     end
 
@@ -46,7 +42,7 @@ defmodule ExMP4.Box.Moov do
             {box, rest}
 
           {"trak", box_data, rest} ->
-            box = %{box | traks: box.traks ++ [ExMP4.Box.parse(%Trak{}, box_data)]}
+            box = %{box | trak: box.trak ++ [ExMP4.Box.parse(%Trak{}, box_data)]}
             {box, rest}
 
           {"mvex", box_data, rest} ->

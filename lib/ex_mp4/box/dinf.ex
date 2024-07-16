@@ -10,8 +10,13 @@ defmodule ExMP4.Box.Dinf do
   defstruct dref: %{
               version: 0,
               flags: 0,
-              entry_count: 0,
-              data_entry: []
+              entry_count: 1,
+              data_entry: [
+                %{
+                  version: 0,
+                  flags: 0
+                }
+              ]
             }
 
   defimpl ExMP4.Box do

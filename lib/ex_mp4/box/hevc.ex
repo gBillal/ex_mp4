@@ -1,6 +1,6 @@
-defmodule ExMP4.Box.Avc do
+defmodule ExMP4.Box.Hevc do
   @moduledoc """
-  A module representing an `avc1` and `avc3` boxes.
+  A module representing an `hvc1` and `hev1` boxes.
   """
 
   import ExMP4.Box.Utils, only: [parse_header: 1]
@@ -17,7 +17,7 @@ defmodule ExMP4.Box.Avc do
           frame_count: integer(),
           compressor_name: binary(),
           depth: integer(),
-          avcC: binary(),
+          hvcC: binary(),
           pasp: Pasp.t() | nil
         }
 
@@ -30,13 +30,12 @@ defmodule ExMP4.Box.Avc do
             frame_count: 1,
             compressor_name: <<0::8*32>>,
             depth: 0x0018,
-            avcC: <<>>,
+            hvcC: <<>>,
             pasp: nil
 
   defimpl ExMP4.Box do
     def size(box) do
-      pasp_size = if box.pasp, do: ExMP4.Box.size(box.pasp), else: 0
-      ExMP4.header_size() + 78 + byte_size(box.avcC) + 8 + pasp_size
+      ExMP4.header_size() + 78 + byte_size(box.hvcC) + ExMP4.Box.size(box.pasp) + 8
     end
 
     def parse(
@@ -60,14 +59,14 @@ defmodule ExMP4.Box.Avc do
     end
 
     def serialize(box) do
-      avcc = <<byte_size(box.avcC) + 8::32, "avcC", box.avcC::binary>>
+      hvcc = <<byte_size(box.hvcC) + 8::32, "hvcC", box.hvcC::binary>>
 
       data =
-        <<size(box)::32, box.tag || "avc1"::binary, 0::48, box.data_reference_index::16, 0::128,
+        <<size(box)::32, box.tag || "hvc1"::binary, 0::48, box.data_reference_index::16, 0::128,
           box.width::16, box.height::16, box.horizresolution::32, box.vertresolution::32, 0::32,
           box.frame_count::16, box.compressor_name::binary, box.depth::16, -1::16-signed>>
 
-      [data, avcc, ExMP4.Box.serialize(box.pasp)]
+      [data, hvcc, ExMP4.Box.serialize(box.pasp)]
     end
 
     defp do_parse(box, <<>>), do: box
@@ -75,8 +74,8 @@ defmodule ExMP4.Box.Avc do
     defp do_parse(box, data) do
       {box, rest} =
         case parse_header(data) do
-          {"avcC", box_data, rest} ->
-            box = %{box | avcC: box_data}
+          {"hvcC", box_data, rest} ->
+            box = %{box | hvcC: box_data}
             {box, rest}
 
           {"pasp", box_data, rest} ->
