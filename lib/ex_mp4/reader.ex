@@ -49,7 +49,7 @@ defmodule ExMP4.Reader do
 
   """
 
-  alias ExMP4.Container
+  alias ExMP4.Box
   alias ExMP4.Container.Header
   alias ExMP4.{Helper, Sample, Track}
 
@@ -203,19 +203,19 @@ defmodule ExMP4.Reader do
   defp parse_metadata(%__MODULE__{} = reader) do
     case reader.reader_mod.read(reader.reader_state, @max_header_size) do
       :eof ->
-        reader
+        if reader.fragmented?, do: reverse_trafs(reader), else: reader
 
       data ->
         {:ok, header, rest} = Header.parse(data)
 
         reader
-        |> do_parse_metadata(header, {data, rest})
+        |> do_parse_metadata(header, rest)
         |> parse_metadata()
     end
   end
 
-  defp do_parse_metadata(reader, %{name: :ftyp} = header, {_data, rest}) do
-    ftyp = ExMP4.Box.parse(%ExMP4.Box.Ftyp{}, read_box(reader, header, rest))
+  defp do_parse_metadata(reader, %{name: :ftyp} = header, rest) do
+    ftyp = Box.parse(%Box.Ftyp{}, read_box(reader, header, rest))
 
     %{
       reader
@@ -225,13 +225,22 @@ defmodule ExMP4.Reader do
     }
   end
 
-  defp do_parse_metadata(reader, %{name: :moov} = header, {_data, rest}) do
-    moov = ExMP4.Box.parse(%ExMP4.Box.Moov{}, read_box(reader, header, rest))
+  defp do_parse_metadata(reader, %{name: :moov} = header, rest) do
+    moov = Box.parse(%Box.Moov{}, read_box(reader, header, rest))
 
     tracks =
       moov.trak
       |> Enum.map(&Track.from_trak/1)
       |> Map.new(&{&1.id, &1})
+
+    tracks =
+      if moov.mvex do
+        Enum.reduce(moov.mvex.trex, tracks, fn trex, tracks ->
+          Map.update!(tracks, trex.track_id, &%{&1 | trex: trex})
+        end)
+      else
+        tracks
+      end
 
     %{
       reader
@@ -244,32 +253,45 @@ defmodule ExMP4.Reader do
     }
   end
 
-  defp do_parse_metadata(reader, %{name: :moof} = header, {data, rest}) do
-    reader
-    |> read_and_parse_box(header, {data, rest})
-    |> ExMP4.Box.MovieFragment.unpack()
-    |> Enum.reduce(reader.tracks, fn fragment, tracks ->
-      Map.update!(tracks, fragment.track_id, &Track.add_fragment(&1, fragment))
+  defp do_parse_metadata(reader, %{name: :moof} = header, rest) do
+    moof = Box.parse(%Box.Moof{}, read_box(reader, header, rest))
+
+    Enum.reduce(moof.traf, reader.tracks, fn traf, tracks ->
+      track_id = traf.tfhd.track_id
+      traf_duration = Box.Traf.duration(traf, tracks[track_id].trex)
+      sample_count = Box.Traf.sample_count(traf)
+
+      Map.update!(
+        tracks,
+        track_id,
+        &%{
+          &1
+          | trafs: [traf | &1.trafs],
+            duration: &1.duration + traf_duration,
+            sample_count: &1.sample_count + sample_count
+        }
+      )
     end)
     |> then(&%{reader | tracks: &1, duration: max_duration(reader, Map.values(&1))})
   end
 
-  defp do_parse_metadata(reader, header, {_data, rest}) do
+  defp do_parse_metadata(reader, header, rest) do
     skip(reader, header, rest)
     reader
+  end
+
+  defp reverse_trafs(reader) do
+    Map.update!(reader, :tracks, fn tracks ->
+      Map.new(tracks, fn {track_id, track} ->
+        {track_id, %{track | trafs: Enum.reverse(track.trafs)}}
+      end)
+    end)
   end
 
   defp read_box(reader, header, rest) do
     amount_to_read = header.content_size - byte_size(rest)
     box_data = reader.reader_mod.read(reader.reader_state, amount_to_read)
     rest <> box_data
-  end
-
-  defp read_and_parse_box(reader, header, {header_data, rest}) do
-    amount_to_read = header.content_size - byte_size(rest)
-    box_data = reader.reader_mod.read(reader.reader_state, amount_to_read)
-    {box, ""} = Container.parse!(header_data <> box_data)
-    box
   end
 
   defp skip(reader, header, rest) do

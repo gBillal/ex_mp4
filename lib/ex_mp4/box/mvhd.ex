@@ -1,9 +1,22 @@
 defmodule ExMP4.Box.Mvhd do
-  @moduledoc false
+  @moduledoc """
+  A module representing a `mvhd` box.
+  """
 
   import ExMP4.Box.Utils
 
-  @type t :: %__MODULE__{}
+  @type t :: %__MODULE__{
+          version: integer(),
+          flags: integer(),
+          creation_time: DateTime.t(),
+          modification_time: DateTime.t(),
+          timescale: non_neg_integer(),
+          duration: non_neg_integer(),
+          rate: integer(),
+          volume: integer(),
+          matrix: [integer()],
+          next_track_id: integer()
+        }
 
   defstruct version: 0,
             flags: 0,

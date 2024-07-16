@@ -265,20 +265,20 @@ defmodule ExMP4.Writer do
 
     Map.update!(moov, :trak, fn traks ->
       Enum.map(traks, fn trak ->
-        stbl = trak.mdia.minf.stbl
-
-        stbl =
-          case stbl do
-            %{stco: stco} when not is_nil(stco) ->
-              %{stbl | stco: %{stco | entries: Enum.map(stco.entries, &(&1 + size))}}
-
-            %{co64: co64} ->
-              %{stbl | co64: %{co64 | entries: Enum.map(co64.entries, &(&1 + size))}}
-          end
-
+        stbl = update_trak_offset(trak.mdia.minf.stbl, size)
         %{trak | mdia: %{trak.mdia | minf: %{trak.mdia.minf | stbl: stbl}}}
       end)
     end)
+  end
+
+  defp update_trak_offset(stbl, size) do
+    case stbl do
+      %{stco: stco} when not is_nil(stco) ->
+        %{stbl | stco: %{stco | entries: Enum.map(stco.entries, &(&1 + size))}}
+
+      %{co64: co64} ->
+        %{stbl | co64: %{co64 | entries: Enum.map(co64.entries, &(&1 + size))}}
+    end
   end
 
   defimpl Collectable do

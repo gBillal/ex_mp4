@@ -3,7 +3,7 @@ defmodule ExMP4.Track do
   A struct describing an MP4 track.
   """
 
-  alias ExMP4.Box.{Stbl, Trak}
+  alias ExMP4.Box.{Stbl, Traf, Trak, Trex}
 
   alias ExMP4.{Container, Helper, Sample}
   alias ExMP4.Track.FragmentedSampleTable
@@ -44,7 +44,10 @@ defmodule ExMP4.Track do
           height: non_neg_integer() | nil,
           sample_rate: non_neg_integer() | nil,
           channels: non_neg_integer() | nil,
-          sample_count: non_neg_integer()
+          sample_count: non_neg_integer(),
+          sample_table: Stbl.t(),
+          trafs: [Traf.t()],
+          trex: Trex.t() | nil
         }
 
   defstruct [
@@ -61,7 +64,9 @@ defmodule ExMP4.Track do
     :sample_table,
     :frag_sample_table,
     :movie_duration,
+    :trex,
     priv_data: <<>>,
+    trafs: [],
     timescale: 1000,
     _iter_index: 1,
     _iter_duration: 0,
@@ -205,7 +210,7 @@ defmodule ExMP4.Track do
     }
   end
 
-  defp total_size(%{frag_sample_table: nil, sample_table: stbl}) do
+  defp total_size(%{trex: nil, sample_table: stbl}) do
     case stbl do
       %{stsz: nil} -> Enum.sum(stbl.stz2.entries)
       %{stsz: %{sample_size: 0}} -> Enum.sum(stbl.stsz.entries)
@@ -213,8 +218,8 @@ defmodule ExMP4.Track do
     end
   end
 
-  defp total_size(%{frag_sample_table: sample_table}) do
-    FragmentedSampleTable.total_size(sample_table)
+  defp total_size(%{trafs: trafs, trex: trex}) do
+    Enum.reduce(trafs, 0, &(Traf.total_size(&1, trex) + &2))
   end
 
   defp get_track_type(track, trak) do
@@ -404,12 +409,12 @@ defmodule ExMP4.Track do
     def reduce(_track, {:halt, acc}, _fun), do: {:halted, acc}
 
     # progressive file
-    def reduce(%{frag_sample_table: nil} = track, {:cont, acc}, _fun)
+    def reduce(%{trex: nil} = track, {:cont, acc}, _fun)
         when track._iter_index > track.sample_count do
       {:done, acc}
     end
 
-    def reduce(%{frag_sample_table: nil} = track, {:cont, acc}, fun) do
+    def reduce(%{trex: nil} = track, {:cont, acc}, fun) do
       %{_iter_index: index, _iter_duration: duration} = track
 
       {stbl, sample_metadata} = Stbl.next_sample(track.sample_table, index, duration)
@@ -427,16 +432,26 @@ defmodule ExMP4.Track do
     end
 
     # fragmented file
-    def reduce(%{frag_sample_table: %{moofs: []}}, {:cont, acc}, _fun) do
+    def reduce(%{trafs: []}, {:cont, acc}, _fun) do
       {:done, acc}
     end
 
-    def reduce(track, {:cont, acc}, fun) do
-      {frag_table, sample_metadata} = FragmentedSampleTable.next_sample(track.frag_sample_table)
+    def reduce(%{trafs: [traf | rest]} = track, {:cont, acc}, fun) do
+      {traf, sample_metadata} = Traf.next_sample(traf, track.trex, track._iter_duration)
       sample_metadata = %{sample_metadata | track_id: track.id}
-      reduce(%{track | frag_sample_table: frag_table}, fun.(sample_metadata, acc), fun)
+
+      track =
+        case traf.trun do
+          [] -> %{track | trafs: rest}
+          _other -> %{track | trafs: [traf | rest]}
+        end
+
+      duration = track._iter_duration + sample_metadata.duration
+
+      reduce(%{track | _iter_duration: duration}, fun.(sample_metadata, acc), fun)
     end
 
+    def count(%{trex: trex}) when not is_nil(trex), do: {:error, __MODULE__}
     def count(%{sample_count: count}), do: {:ok, count}
 
     def member?(_enumerable, _element), do: {:error, __MODULE__}
