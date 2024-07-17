@@ -12,6 +12,7 @@ defmodule ExMP4.Support.Utils do
          146, 251, 100>>
 
   @video_track Track.new(
+                 id: 1,
                  type: :video,
                  media: :h265,
                  priv_data: @dcr,
@@ -21,6 +22,7 @@ defmodule ExMP4.Support.Utils do
                )
 
   @audio_track Track.new(
+                 id: 2,
                  type: :audio,
                  media: :aac,
                  priv_data: <<0, 0, 1, 3, 2>>,

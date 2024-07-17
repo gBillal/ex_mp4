@@ -110,7 +110,6 @@ defmodule ExMP4.Writer do
       track
       | id: track_id,
         sample_table: new_sample_table(),
-        frag_sample_table: nil,
         duration: 0
     }
 

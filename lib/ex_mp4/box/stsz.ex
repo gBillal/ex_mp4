@@ -16,7 +16,7 @@ defmodule ExMP4.Box.Stsz do
   defstruct version: 0, flags: 0, sample_size: 0, sample_count: 0, entries: []
 
   defimpl ExMP4.Box do
-    def size(box), do: MP4.full_box_header_size() + 8 + 4 * length(box.entries)
+    def size(box), do: ExMP4.full_box_header_size() + 8 + 4 * length(box.entries)
 
     def parse(box, <<version::8, flags::24, sample_size::32, sample_count::32, entries::binary>>) do
       %{

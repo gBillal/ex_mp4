@@ -50,7 +50,6 @@ defmodule ExMP4.Reader do
   """
 
   alias ExMP4.Box
-  alias ExMP4.Container.Header
   alias ExMP4.{Helper, Sample, Track}
 
   @typedoc """
@@ -206,16 +205,16 @@ defmodule ExMP4.Reader do
         if reader.fragmented?, do: reverse_trafs(reader), else: reader
 
       data ->
-        {:ok, header, rest} = Header.parse(data)
+        {:ok, {box_type, content_size, rest}} = Box.Utils.try_parse_header(data)
 
         reader
-        |> do_parse_metadata(header, rest)
+        |> do_parse_metadata(box_type, content_size, rest)
         |> parse_metadata()
     end
   end
 
-  defp do_parse_metadata(reader, %{name: :ftyp} = header, rest) do
-    ftyp = Box.parse(%Box.Ftyp{}, read_box(reader, header, rest))
+  defp do_parse_metadata(reader, "ftyp", content_size, rest) do
+    ftyp = Box.parse(%Box.Ftyp{}, read_box(reader, content_size, rest))
 
     %{
       reader
@@ -225,8 +224,8 @@ defmodule ExMP4.Reader do
     }
   end
 
-  defp do_parse_metadata(reader, %{name: :moov} = header, rest) do
-    moov = Box.parse(%Box.Moov{}, read_box(reader, header, rest))
+  defp do_parse_metadata(reader, "moov", content_size, rest) do
+    moov = Box.parse(%Box.Moov{}, read_box(reader, content_size, rest))
 
     tracks =
       moov.trak
@@ -253,8 +252,8 @@ defmodule ExMP4.Reader do
     }
   end
 
-  defp do_parse_metadata(reader, %{name: :moof} = header, rest) do
-    moof = Box.parse(%Box.Moof{}, read_box(reader, header, rest))
+  defp do_parse_metadata(reader, "moof", content_size, rest) do
+    moof = Box.parse(%Box.Moof{}, read_box(reader, content_size, rest))
 
     Enum.reduce(moof.traf, reader.tracks, fn traf, tracks ->
       track_id = traf.tfhd.track_id
@@ -275,8 +274,8 @@ defmodule ExMP4.Reader do
     |> then(&%{reader | tracks: &1, duration: max_duration(reader, Map.values(&1))})
   end
 
-  defp do_parse_metadata(reader, header, rest) do
-    skip(reader, header, rest)
+  defp do_parse_metadata(reader, _box_nale, content_size, rest) do
+    skip(reader, content_size, rest)
     reader
   end
 
@@ -288,14 +287,14 @@ defmodule ExMP4.Reader do
     end)
   end
 
-  defp read_box(reader, header, rest) do
-    amount_to_read = header.content_size - byte_size(rest)
+  defp read_box(reader, content_size, rest) do
+    amount_to_read = content_size - byte_size(rest)
     box_data = reader.reader_mod.read(reader.reader_state, amount_to_read)
     rest <> box_data
   end
 
-  defp skip(reader, header, rest) do
-    amount_to_skip = header.content_size - byte_size(rest)
+  defp skip(reader, content_size, rest) do
+    amount_to_skip = content_size - byte_size(rest)
     reader.reader_mod.seek(reader.reader_state, {:cur, amount_to_skip})
   end
 

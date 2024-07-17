@@ -17,7 +17,7 @@ defmodule ExMP4.Box.Stz2 do
 
   defimpl ExMP4.Box do
     def size(box),
-      do: MP4.full_box_header_size() + 8 + div(box.field_size * length(box.entries), 8)
+      do: ExMP4.full_box_header_size() + 8 + div(box.field_size * length(box.entries), 8)
 
     def parse(
           box,

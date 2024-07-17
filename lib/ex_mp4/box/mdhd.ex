@@ -27,8 +27,8 @@ defmodule ExMP4.Box.Mdhd do
             language: "und"
 
   defimpl ExMP4.Box do
-    def size(%{version: 0}), do: MP4.full_box_header_size() + 20
-    def size(%{version: 1}), do: MP4.full_box_header_size() + 32
+    def size(%{version: 0}), do: ExMP4.full_box_header_size() + 20
+    def size(%{version: 1}), do: ExMP4.full_box_header_size() + 32
 
     def parse(
           box,

@@ -34,8 +34,8 @@ defmodule ExMP4.Box.Tkhd do
             height: {0, 0}
 
   defimpl ExMP4.Box do
-    def size(%{version: 0}), do: MP4.full_box_header_size() + 80
-    def size(%{version: 1}), do: MP4.full_box_header_size() + 96
+    def size(%{version: 0}), do: ExMP4.full_box_header_size() + 80
+    def size(%{version: 1}), do: ExMP4.full_box_header_size() + 96
 
     def parse(
           box,

@@ -21,7 +21,7 @@ defmodule ExMP4.Box.Dinf do
 
   defimpl ExMP4.Box do
     def size(_box) do
-      ExMP4.header_size() + MP4.full_box_header_size() * 2 + 4
+      ExMP4.header_size() + ExMP4.full_box_header_size() * 2 + 4
     end
 
     def parse(

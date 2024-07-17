@@ -14,7 +14,7 @@ defmodule ExMP4.Box.Smhd do
   defstruct version: 0, flags: 0, balance: 0
 
   defimpl ExMP4.Box do
-    def size(_box), do: MP4.full_box_header_size() + 4
+    def size(_box), do: ExMP4.full_box_header_size() + 4
 
     def parse(box, <<version::8, flags::24, balance::16, 0::16>>) do
       %{

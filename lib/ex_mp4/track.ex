@@ -4,12 +4,9 @@ defmodule ExMP4.Track do
   """
 
   alias ExMP4.Box.{Stbl, Traf, Trak, Trex}
-
-  alias ExMP4.{Container, Helper, Sample}
-  alias ExMP4.Track.FragmentedSampleTable
+  alias ExMP4.{Helper, Sample}
 
   @type id :: non_neg_integer()
-  @type box :: %{fields: map(), children: Container.t()}
 
   @typedoc """
   Struct describing an mp4 track.
@@ -36,7 +33,7 @@ defmodule ExMP4.Track do
           id: id(),
           type: :video | :audio | :subtitle | :unknown,
           media: :h264 | :h265 | :aac | :opus | :unknown,
-          media_tag: ExMP4.Container.box_name_t(),
+          media_tag: atom(),
           priv_data: binary() | struct(),
           duration: non_neg_integer(),
           timescale: non_neg_integer(),
@@ -45,7 +42,7 @@ defmodule ExMP4.Track do
           sample_rate: non_neg_integer() | nil,
           channels: non_neg_integer() | nil,
           sample_count: non_neg_integer(),
-          sample_table: Stbl.t(),
+          sample_table: Stbl.t() | nil,
           trafs: [Traf.t()],
           trex: Trex.t() | nil
         }
@@ -55,36 +52,23 @@ defmodule ExMP4.Track do
     :type,
     :media,
     :media_tag,
-    :duration,
     :width,
     :height,
     :sample_rate,
     :channels,
-    :sample_count,
     :sample_table,
-    :frag_sample_table,
     :movie_duration,
     :trex,
     priv_data: <<>>,
     trafs: [],
     timescale: 1000,
+    duration: 0,
+    sample_count: 0,
     _iter_index: 1,
     _iter_duration: 0,
     _chunk_id: 1,
     _stsc_entry: %{first_chunk: 1, samples_per_chunk: 0, sample_description_index: 1}
   ]
-
-  @spec add_fragment(t(), ExMP4.Track.Fragment.t()) :: t()
-  def add_fragment(track, fragment) do
-    sample_table = FragmentedSampleTable.add_fragment(track.frag_sample_table, fragment)
-
-    %{
-      track
-      | frag_sample_table: sample_table,
-        duration: sample_table.duration,
-        sample_count: sample_table.sample_count
-    }
-  end
 
   @spec from_trak(Trak.t()) :: t()
   def from_trak(%Trak{} = trak) do

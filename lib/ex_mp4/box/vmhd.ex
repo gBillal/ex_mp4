@@ -15,7 +15,7 @@ defmodule ExMP4.Box.Vmhd do
   defstruct version: 0, flags: 1, graphics_mod: 0, opcolor: [0, 0, 0]
 
   defimpl ExMP4.Box do
-    def size(_box), do: MP4.full_box_header_size() + 8
+    def size(_box), do: ExMP4.full_box_header_size() + 8
 
     def parse(
           box,

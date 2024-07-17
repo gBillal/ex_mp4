@@ -33,8 +33,8 @@ defmodule ExMP4.Box.Mvhd do
   def new(opts), do: struct!(__MODULE__, opts)
 
   defimpl ExMP4.Box do
-    def size(%{version: 1}), do: MP4.full_box_header_size() + 108
-    def size(%{version: 0}), do: MP4.full_box_header_size() + 96
+    def size(%{version: 1}), do: ExMP4.full_box_header_size() + 108
+    def size(%{version: 0}), do: ExMP4.full_box_header_size() + 96
 
     def parse(
           box,

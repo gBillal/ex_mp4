@@ -25,7 +25,7 @@ defmodule ExMP4.Box.Stsd do
 
   defimpl ExMP4.Box do
     def size(box) do
-      MP4.full_box_header_size() + 4 + Box.size(box.avc1) + Box.size(box.avc3) +
+      ExMP4.full_box_header_size() + 4 + Box.size(box.avc1) + Box.size(box.avc3) +
         Box.size(box.mp4a) + +Box.size(box.hvc1) + +Box.size(box.hev1)
     end
 

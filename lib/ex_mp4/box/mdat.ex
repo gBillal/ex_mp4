@@ -10,7 +10,7 @@ defmodule ExMP4.Box.Mdat do
   defstruct content: <<>>
 
   defimpl ExMP4.Box do
-    def size(box), do: MP4.header_size() + IO.iodata_length(box.content)
+    def size(box), do: ExMP4.header_size() + IO.iodata_length(box.content)
 
     def parse(box, content), do: %{box | content: content}
 
