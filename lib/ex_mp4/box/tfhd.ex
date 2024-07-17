@@ -17,7 +17,7 @@ defmodule ExMP4.Box.Tfhd do
   defstruct version: 0,
             flags: 0,
             track_id: 0,
-            base_data_offset: nil,
+            base_data_offset: 0,
             sample_description_index: nil,
             default_sample_duration: nil,
             default_sample_size: nil,

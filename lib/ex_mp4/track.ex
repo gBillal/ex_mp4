@@ -393,7 +393,6 @@ defmodule ExMP4.Track do
   end
 
   defp reverse_entries(nil), do: nil
-  defp reverse_entries(%{entries: []}), do: nil
   defp reverse_entries(%{entries: entries} = table), do: %{table | entries: Enum.reverse(entries)}
 
   defp serialize_priv_data(_codec, data) when is_binary(data), do: data

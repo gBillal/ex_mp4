@@ -61,6 +61,44 @@ defmodule ExMP4.Box.Traf do
     {traf, sample_metadata}
   end
 
+  @spec store_sample(t(), ExMP4.Sample.t()) :: t()
+  def store_sample(%{trun: [run]} = traf, sample) do
+    run_entry = %{
+      sample_duration: sample.duration,
+      sample_size: byte_size(sample.payload),
+      sample_flags: if(sample.sync?, do: 0, else: 0x10000),
+      sample_composition_time_offset: sample.pts - sample.dts
+    }
+
+    run = %{run | entries: [run_entry | run.entries], sample_count: run.sample_count + 1}
+    %{traf | trun: [run]}
+  end
+
+  @spec finalize(t()) :: t()
+  def finalize(%{trun: [run], tfhd: tfhd} = traf) do
+    [first_entry | _entries] = run.entries
+
+    {same_duration?, same_size?, same_flags?, zero_offset?} =
+      Enum.reduce(
+        run.entries,
+        {true, true, true, true},
+        fn entry, {same_duration?, same_size?, same_flags?, zero_offset?} ->
+          {
+            same_duration? and entry.sample_duration == first_entry.sample_duration,
+            same_size? and entry.sample_size == first_entry.sample_size,
+            same_flags? and entry.sample_flags == first_entry.sample_flags,
+            zero_offset? and entry.sample_composition_time_offset == 0
+          }
+        end
+      )
+
+    run_flags = run_flags(same_duration?, same_size?, same_flags?, zero_offset?)
+    tr_flags = tr_flags(same_duration?, same_size?, same_flags?)
+
+    run = %{run | flags: run_flags, entries: Enum.reverse(run.entries)}
+    %{traf | trun: [run], tfhd: track_header(tfhd, tr_flags, first_entry)}
+  end
+
   @doc """
   Get the total size of the track fragment.
   """
@@ -104,6 +142,35 @@ defmodule ExMP4.Box.Traf do
         trex.default_sample_flags,
       0x10000
     ) == 0
+  end
+
+  defp tr_flags(same_duration?, same_size?, same_flags?) do
+    flags = 0x1
+    flags = if same_duration?, do: Bitwise.bor(flags, 0x8), else: flags
+    flags = if same_size?, do: Bitwise.bor(flags, 0x10), else: flags
+    if same_flags?, do: Bitwise.bor(flags, 0x20), else: flags
+  end
+
+  defp run_flags(same_duration?, same_size?, same_flags?, zoro_offset?) do
+    flags = 0x1
+    flags = if same_duration?, do: flags, else: Bitwise.bor(flags, 0x100)
+    flags = if same_size?, do: flags, else: Bitwise.bor(flags, 0x200)
+    flags = if same_flags?, do: flags, else: Bitwise.bor(flags, 0x400)
+    if zoro_offset?, do: flags, else: Bitwise.bor(flags, 0x800)
+  end
+
+  defp track_header(tfhd, tr_flags, first_entry) do
+    duration = if Bitwise.band(tr_flags, 0x8) != 0, do: first_entry.sample_duration
+    size = if Bitwise.band(tr_flags, 0x10) != 0, do: first_entry.sample_size
+    flags = if Bitwise.band(tr_flags, 0x20) != 0, do: first_entry.sample_flags
+
+    %Tfhd{
+      tfhd
+      | flags: tr_flags,
+        default_sample_duration: duration,
+        default_sample_size: size,
+        default_sample_flags: flags
+    }
   end
 
   defimpl ExMP4.Box do

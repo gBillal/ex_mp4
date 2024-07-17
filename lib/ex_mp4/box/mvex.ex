@@ -26,8 +26,7 @@ defmodule ExMP4.Box.Mvex do
     def parse(box, data), do: do_parse(box, data)
 
     def serialize(box) do
-      mehd_data = if box.mehd, do: Box.serialize(box.mehd), else: <<>>
-      [<<size(box)::32, "mvex">>, mehd_data, Enum.map(box.trex, &Box.serialize/1)]
+      [<<size(box)::32, "mvex">>, Box.serialize(box.mehd), Box.serialize(box.trex)]
     end
 
     defp do_parse(box, <<>>), do: box

@@ -76,6 +76,10 @@ defmodule ExMP4.Box.Stbl do
     {stbl, %{element | pts: element.dts}}
   end
 
+  defp sample_pts({%{ctts: %{entries: []}} = stbl, element}) do
+    {stbl, %{element | pts: element.dts}}
+  end
+
   defp sample_pts({%{ctts: ctts} = stbl, element}) do
     {offset, entries} =
       case ctts.entries do
