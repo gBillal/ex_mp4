@@ -3,11 +3,10 @@ defmodule ExMP4.Track do
   A struct describing an MP4 track.
   """
 
-  alias ExMP4.{Container, Helper}
-  alias ExMP4.Track.{FragmentedSampleTable, SampleTable}
+  alias ExMP4.Box.{Stbl, Traf, Trak, Trex}
+  alias ExMP4.{Helper, Sample}
 
   @type id :: non_neg_integer()
-  @type box :: %{fields: map(), children: Container.t()}
 
   @typedoc """
   Struct describing an mp4 track.
@@ -34,7 +33,7 @@ defmodule ExMP4.Track do
           id: id(),
           type: :video | :audio | :subtitle | :unknown,
           media: :h264 | :h265 | :aac | :opus | :unknown,
-          media_tag: ExMP4.Container.box_name_t(),
+          media_tag: atom(),
           priv_data: binary() | struct(),
           duration: non_neg_integer(),
           timescale: non_neg_integer(),
@@ -43,11 +42,9 @@ defmodule ExMP4.Track do
           sample_rate: non_neg_integer() | nil,
           channels: non_neg_integer() | nil,
           sample_count: non_neg_integer(),
-
-          # private fields
-          sample_table: SampleTable.t() | nil,
-          frag_sample_table: FragmentedSampleTable.t() | nil,
-          movie_duration: integer() | nil
+          sample_table: Stbl.t() | nil,
+          trafs: [Traf.t()],
+          trex: Trex.t() | nil
         }
 
   defstruct [
@@ -55,28 +52,68 @@ defmodule ExMP4.Track do
     :type,
     :media,
     :media_tag,
-    :duration,
     :width,
     :height,
     :sample_rate,
     :channels,
-    :sample_count,
     :sample_table,
-    :frag_sample_table,
     :movie_duration,
+    :trex,
     priv_data: <<>>,
-    timescale: 1000
+    trafs: [],
+    timescale: 1000,
+    duration: 0,
+    sample_count: 0,
+    _iter_index: 1,
+    _iter_duration: 0,
+    _chunk_id: 1,
+    _stsc_entry: %{first_chunk: 1, samples_per_chunk: 0, sample_description_index: 1}
   ]
 
-  @spec add_fragment(t(), ExMP4.Track.Fragment.t()) :: t()
-  def add_fragment(track, fragment) do
-    sample_table = FragmentedSampleTable.add_fragment(track.frag_sample_table, fragment)
+  @spec from_trak(Trak.t()) :: t()
+  def from_trak(%Trak{} = trak) do
+    stbl = trak.mdia.minf.stbl
 
-    %{
-      track
-      | frag_sample_table: sample_table,
-        duration: sample_table.duration,
-        sample_count: sample_table.sample_count
+    %__MODULE__{id: trak.tkhd.track_id, sample_table: stbl}
+    |> get_track_type(trak)
+    |> get_duration(trak)
+    |> get_media(stbl)
+    |> get_sample_count(stbl)
+  end
+
+  @spec to_trak(t(), ExMP4.timescale()) :: Trak.t()
+  def to_trak(%{sample_table: stbl} = track, movie_timescale) do
+    %Trak{
+      tkhd: %ExMP4.Box.Tkhd{
+        track_id: track.id,
+        duration: Helper.timescalify(track.duration, track.timescale, movie_timescale),
+        volume: if(track.type == :audio, do: 0x0100, else: 0),
+        width: {track.width || 0, 0},
+        height: {track.height || 0, 0}
+      },
+      mdia: %ExMP4.Box.Mdia{
+        mdhd: %ExMP4.Box.Mdhd{
+          duration: track.duration,
+          timescale: track.timescale
+        },
+        hdlr: trak_media_handler(track),
+        minf: %ExMP4.Box.Minf{
+          vmhd: trak_video_header(track),
+          smhd: trak_audio_header(track),
+          stbl: %ExMP4.Box.Stbl{
+            stbl
+            | stsd: sample_description_table(track),
+              stts: reverse_entries(stbl.stts),
+              ctts: reverse_entries(stbl.ctts),
+              stss: reverse_entries(stbl.stss),
+              stsz: reverse_entries(stbl.stsz),
+              stz2: reverse_entries(stbl.stz2),
+              stsc: reverse_entries(stbl.stsc),
+              stco: reverse_entries(stbl.stco),
+              co64: reverse_entries(stbl.co64)
+          }
+        }
+      }
     }
   end
 
@@ -100,13 +137,7 @@ defmodule ExMP4.Track do
   """
   @spec bitrate(t()) :: non_neg_integer()
   def bitrate(track) do
-    total_size =
-      case track do
-        %{frag_sample_table: nil} -> SampleTable.total_size(track.sample_table)
-        _track -> FragmentedSampleTable.total_size(track.frag_sample_table)
-      end
-
-    div(total_size * 1000 * 8, duration(track, :millisecond))
+    div(total_size(track) * 1000 * 8, duration(track, :millisecond))
   end
 
   @doc """
@@ -120,43 +151,229 @@ defmodule ExMP4.Track do
   def fps(_track), do: 0
 
   @doc false
-  @spec store_sample(t(), ExMP4.Sample.t()) :: t()
-  def store_sample(track, sample) do
-    %{track | sample_table: SampleTable.store_sample(track.sample_table, sample)}
+  @spec store_sample(t(), Sample.t()) :: t()
+  def store_sample(%{sample_table: stbl} = track, sample) do
+    stsc_entry = %{track._stsc_entry | samples_per_chunk: track._stsc_entry.samples_per_chunk + 1}
+    duration = track.duration + sample.duration
+
+    stbl
+    |> update_stts(sample)
+    |> update_ctts(sample, track.type)
+    |> update_stsz(sample)
+    |> update_stss(sample, track.type)
+    |> then(&%{track | sample_table: &1, duration: duration, _stsc_entry: stsc_entry})
   end
 
   @doc false
-  @spec chunk_duration(t()) :: ExMP4.duration()
-  def chunk_duration(%{sample_table: table}), do: SampleTable.chunk_duration(table)
+  @spec flush_chunk(t(), ExMP4.offset()) :: t()
+  def flush_chunk(%{sample_table: stbl} = track, chunk_offset) do
+    samples_per_chunk = track._stsc_entry.samples_per_chunk
+    stco = %{stbl.stco | entries: [chunk_offset | stbl.stco.entries]}
 
-  @doc false
-  @spec flush_chunk(t(), ExMP4.offset()) :: {binary(), t()}
-  def flush_chunk(track, chunk_offset) do
-    {chunk_data, sample_table} = SampleTable.flush_chunk(track.sample_table, chunk_offset)
-    {chunk_data, %{track | sample_table: sample_table}}
-  end
+    stsc =
+      case stbl.stsc.entries do
+        [%{samples_per_chunk: ^samples_per_chunk} | _rest] = entries ->
+          %{stbl.stsc | entries: entries}
 
-  @doc false
-  @spec finalize(t(), non_neg_integer()) :: t()
-  def finalize(track, movie_timescale) do
-    track
-    |> put_durations(movie_timescale)
-    |> Map.update!(:sample_table, &SampleTable.reverse/1)
-  end
+        entries ->
+          %{stbl.stsc | entries: [track._stsc_entry | entries]}
+      end
 
-  defp put_durations(track, movie_timescale) do
-    use Numbers, overload_operators: true
-
-    duration =
-      track.sample_table.decoding_deltas
-      |> Enum.reduce(0, &(&1.sample_count * &1.sample_delta + &2))
+    stbl = %Stbl{stbl | stsc: stsc, stco: stco}
+    chunk_id = track._chunk_id + 1
 
     %{
       track
-      | duration: Helper.timescalify(duration, track.timescale, track.timescale),
-        movie_duration: Helper.timescalify(duration, track.timescale, movie_timescale)
+      | sample_table: stbl,
+        _chunk_id: chunk_id,
+        _stsc_entry: %{
+          first_chunk: chunk_id,
+          samples_per_chunk: 0,
+          sample_description_index: 1
+        }
     }
   end
+
+  defp total_size(%{trex: nil, sample_table: stbl}) do
+    case stbl do
+      %{stsz: nil} -> Enum.sum(stbl.stz2.entries)
+      %{stsz: %{sample_size: 0}} -> Enum.sum(stbl.stsz.entries)
+      %{stsz: %{sample_size: size}} -> size * stbl.stsz.sample_count
+    end
+  end
+
+  defp total_size(%{trafs: trafs, trex: trex}) do
+    Enum.reduce(trafs, 0, &(Traf.total_size(&1, trex) + &2))
+  end
+
+  defp get_track_type(track, trak) do
+    type =
+      case trak.mdia.hdlr.handler_type do
+        "soun" -> :audio
+        "vide" -> :video
+        _other -> :unknown
+      end
+
+    %{track | type: type}
+  end
+
+  defp get_duration(track, trak) do
+    %{
+      track
+      | duration: trak.mdia.mdhd.duration,
+        timescale: trak.mdia.mdhd.timescale
+    }
+  end
+
+  defp get_media(track, %{stsd: stsd}) do
+    cond do
+      hevc = stsd.hvc1 || stsd.hev1 ->
+        %{
+          track
+          | media: :h265,
+            width: hevc.width,
+            height: hevc.height,
+            priv_data: hevc.hvcC,
+            media_tag: if(stsd.hvc1, do: :hvc1, else: :hev1)
+        }
+
+      avc = stsd.avc1 || stsd.avc3 ->
+        %{
+          track
+          | media: :h264,
+            width: avc.width,
+            height: avc.height,
+            priv_data: avc.avcC,
+            media_tag: if(stsd.avc1, do: :avc1, else: :avc3)
+        }
+
+      mp4a = stsd.mp4a ->
+        %{
+          track
+          | media: :aac,
+            priv_data: mp4a.esds,
+            channels: mp4a.channel_count,
+            sample_rate: elem(mp4a.sample_rate, 0),
+            media_tag: :esds
+        }
+
+      true ->
+        %{track | media: :unknown}
+    end
+  end
+
+  defp get_sample_count(track, stbl) do
+    %{track | sample_count: stbl.stsz.sample_count}
+  end
+
+  # Samples storage
+  defp update_stts(%{stts: stts} = stbl, %Sample{duration: duration}) do
+    entries =
+      case stts.entries do
+        [%{sample_count: count, sample_delta: ^duration} = entry | entries] ->
+          [%{entry | sample_count: count + 1} | entries]
+
+        entries ->
+          [%{sample_count: 1, sample_delta: duration} | entries]
+      end
+
+    %Stbl{stbl | stts: %{stts | entries: entries}}
+  end
+
+  defp update_ctts(%{ctts: ctts} = stbl, %Sample{dts: dts, pts: pts}, :video) do
+    diff = pts - dts
+
+    entries =
+      case ctts.entries do
+        [%{sample_count: count, sample_offset: ^diff} = entry | entries] ->
+          [%{entry | sample_count: count + 1} | entries]
+
+        entries ->
+          [%{sample_count: 1, sample_offset: diff} | entries]
+      end
+
+    %Stbl{stbl | ctts: %{ctts | entries: entries}}
+  end
+
+  defp update_ctts(stbl, _sample, _other), do: stbl
+
+  defp update_stsz(%{stsz: stsz} = stbl, %Sample{payload: payload}) do
+    stsz = %{
+      stsz
+      | sample_count: stsz.sample_count + 1,
+        entries: [byte_size(payload) | stsz.entries]
+    }
+
+    %Stbl{stbl | stsz: stsz}
+  end
+
+  defp update_stss(%{stss: stss} = stbl, %Sample{sync?: true}, :video) do
+    %Stbl{stbl | stss: %{stss | entries: [stbl.stsz.sample_count | stss.entries]}}
+  end
+
+  defp update_stss(stbl, _sample, _other), do: stbl
+
+  # Convert to trak box
+  defp trak_media_handler(%{type: :audio}) do
+    %ExMP4.Box.Hdlr{
+      handler_type: "soun",
+      name: "SoundHandler"
+    }
+  end
+
+  defp trak_media_handler(%{type: :video}) do
+    %ExMP4.Box.Hdlr{
+      handler_type: "vide",
+      name: "VideoHandler"
+    }
+  end
+
+  defp trak_video_header(%{type: :video}), do: %ExMP4.Box.Vmhd{}
+  defp trak_video_header(_track), do: nil
+
+  defp trak_audio_header(%{type: :audio}), do: %ExMP4.Box.Smhd{}
+  defp trak_audio_header(_track), do: nil
+
+  defp sample_description_table(%{media: :h264} = track) do
+    avc = %ExMP4.Box.Avc{
+      tag: track.media_tag && to_string(track.media_tag),
+      width: track.width,
+      height: track.height,
+      avcC: track.priv_data
+    }
+
+    case track.media_tag do
+      :avc3 -> %ExMP4.Box.Stsd{avc3: avc}
+      _other -> %ExMP4.Box.Stsd{avc1: avc}
+    end
+  end
+
+  defp sample_description_table(%{media: :h265} = track) do
+    hevc = %ExMP4.Box.Hevc{
+      tag: track.media_tag && to_string(track.media_tag),
+      width: track.width,
+      height: track.height,
+      hvcC: track.priv_data
+    }
+
+    case track.media_tag do
+      :hev1 -> %ExMP4.Box.Stsd{hev1: hevc}
+      _other -> %ExMP4.Box.Stsd{hvc1: hevc}
+    end
+  end
+
+  defp sample_description_table(%{media: :aac} = track) do
+    %ExMP4.Box.Stsd{
+      mp4a: %ExMP4.Box.Mp4a{
+        channel_count: track.channels,
+        sample_rate: {track.sample_rate, 0},
+        esds: track.priv_data
+      }
+    }
+  end
+
+  defp reverse_entries(nil), do: nil
+  defp reverse_entries(%{entries: entries} = table), do: %{table | entries: Enum.reverse(entries)}
 
   defimpl Enumerable do
     def reduce(track, {:suspend, acc}, fun) do
@@ -166,28 +383,49 @@ defmodule ExMP4.Track do
     def reduce(_track, {:halt, acc}, _fun), do: {:halted, acc}
 
     # progressive file
-    def reduce(%{frag_sample_table: nil, sample_table: table}, {:cont, acc}, _fun)
-        when table.sample_index > table.sample_count do
+    def reduce(%{trex: nil} = track, {:cont, acc}, _fun)
+        when track._iter_index > track.sample_count do
       {:done, acc}
     end
 
-    def reduce(%{frag_sample_table: nil} = track, {:cont, acc}, fun) do
-      {sample_table, sample_metadata} = SampleTable.next_sample(track.sample_table)
+    def reduce(%{trex: nil} = track, {:cont, acc}, fun) do
+      %{_iter_index: index, _iter_duration: duration} = track
+
+      {stbl, sample_metadata} = Stbl.next_sample(track.sample_table, index, duration)
+
       sample_metadata = %{sample_metadata | track_id: track.id}
-      reduce(%{track | sample_table: sample_table}, fun.(sample_metadata, acc), fun)
+
+      track = %{
+        track
+        | sample_table: stbl,
+          _iter_index: index + 1,
+          _iter_duration: duration + sample_metadata.duration
+      }
+
+      reduce(track, fun.(sample_metadata, acc), fun)
     end
 
     # fragmented file
-    def reduce(%{frag_sample_table: %{moofs: []}}, {:cont, acc}, _fun) do
+    def reduce(%{trafs: []}, {:cont, acc}, _fun) do
       {:done, acc}
     end
 
-    def reduce(track, {:cont, acc}, fun) do
-      {frag_table, sample_metadata} = FragmentedSampleTable.next_sample(track.frag_sample_table)
+    def reduce(%{trafs: [traf | rest]} = track, {:cont, acc}, fun) do
+      {traf, sample_metadata} = Traf.next_sample(traf, track.trex, track._iter_duration)
       sample_metadata = %{sample_metadata | track_id: track.id}
-      reduce(%{track | frag_sample_table: frag_table}, fun.(sample_metadata, acc), fun)
+
+      track =
+        case traf.trun do
+          [] -> %{track | trafs: rest}
+          _other -> %{track | trafs: [traf | rest]}
+        end
+
+      duration = track._iter_duration + sample_metadata.duration
+
+      reduce(%{track | _iter_duration: duration}, fun.(sample_metadata, acc), fun)
     end
 
+    def count(%{trex: trex}) when not is_nil(trex), do: {:error, __MODULE__}
     def count(%{sample_count: count}), do: {:ok, count}
 
     def member?(_enumerable, _element), do: {:error, __MODULE__}

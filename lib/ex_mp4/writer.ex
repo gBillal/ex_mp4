@@ -5,14 +5,15 @@ defmodule ExMP4.Writer do
 
   use Bunch.Access
 
-  alias ExMP4.{Container, Track}
-  alias ExMP4.Box.{FileType, MediaData, Movie}
+  alias ExMP4.{Box, Helper, Track}
+  alias ExMP4.Box.{Ftyp, Moov}
 
   @type t :: %__MODULE__{
           writer_mod: module(),
           writer_state: any(),
           ftyp_size: integer(),
           tracks: %{non_neg_integer() => Track.t()},
+          current_chunk: %{non_neg_integer() => {[iodata()], integer()}},
           mdat_size: integer(),
           fast_start: boolean()
         }
@@ -20,13 +21,15 @@ defmodule ExMP4.Writer do
   @type new_opts :: [fast_start: boolean()]
 
   @mdat_header_size 8
-  @chunk_duration 1_000
+  @chunk_duration 1000
+  @movie_timescale 1000
 
   defstruct [
     :writer_mod,
     :writer_state,
     ftyp_size: 0,
     tracks: %{},
+    current_chunk: %{},
     next_track_id: 1,
     mdat_size: 0,
     fast_start: false
@@ -67,24 +70,29 @@ defmodule ExMP4.Writer do
     [
       compatible_brands: compatible_brands,
       major_brand: major_brand,
-      major_brand_version: version
+      minor_version: version
     ] =
       Keyword.validate!(opts,
         major_brand: "isom",
-        major_brand_version: 512,
+        minor_version: 512,
         compatible_brands: ["isom", "iso2", "avc1", "mp41"]
       )
       |> Enum.sort()
 
-    ftyp_box = FileType.assemble(major_brand, compatible_brands, version)
-    mdata_box = MediaData.assemble(<<>>)
+    ftyp_box = %Ftyp{
+      major_brand: major_brand,
+      minor_version: version,
+      compatible_brands: compatible_brands
+    }
 
-    ftyp_box_data = Container.serialize!(ftyp_box)
-    mdat_box_data = Container.serialize!(mdata_box)
+    mdata_box = %ExMP4.Box.Mdat{}
 
-    writer.writer_mod.write(writer.writer_state, [ftyp_box_data, mdat_box_data])
+    writer.writer_mod.write(writer.writer_state, [
+      Box.serialize(ftyp_box),
+      Box.serialize(mdata_box)
+    ])
 
-    %__MODULE__{writer | ftyp_size: IO.iodata_length(ftyp_box_data)}
+    %__MODULE__{writer | ftyp_size: Box.size(ftyp_box)}
   end
 
   @doc """
@@ -101,12 +109,14 @@ defmodule ExMP4.Writer do
     track = %{
       track
       | id: track_id,
-        sample_table: %Track.SampleTable{},
-        frag_sample_table: nil,
-        movie_duration: 0
+        sample_table: new_sample_table(),
+        duration: 0
     }
 
-    put_in(writer, [:tracks, track_id], track)
+    current_chunk = Map.put(writer.current_chunk, track_id, {[], 0})
+    tracks = Map.put(writer.tracks, track_id, track)
+
+    %{writer | tracks: tracks, current_chunk: current_chunk}
   end
 
   @doc """
@@ -124,15 +134,21 @@ defmodule ExMP4.Writer do
   def write_sample(writer, sample) do
     track = Track.store_sample(track!(writer, sample.track_id), sample)
 
-    chunk_duration =
-      track
-      |> Track.chunk_duration()
-      |> ExMP4.Helper.timescalify(track.timescale, 1_000)
+    current_chunk =
+      Map.update!(writer.current_chunk, track.id, fn {data, duration} ->
+        duration =
+          duration + Helper.timescalify(sample.duration, track.timescale, @movie_timescale)
+
+        {[sample.payload | data], duration}
+      end)
+
+    chunk_duration = elem(current_chunk[track.id], 1)
 
     if chunk_duration >= @chunk_duration do
-      flush_chunk(writer, track)
+      flush_chunk(writer, track, current_chunk[track.id])
     else
       put_in(writer, [:tracks, track.id], track)
+      |> Map.put(:current_chunk, current_chunk)
     end
   end
 
@@ -141,31 +157,48 @@ defmodule ExMP4.Writer do
   """
   @spec write_trailer(t()) :: :ok
   def write_trailer(%{fast_start: fast_start} = writer, opts \\ []) do
-    movie_header_opts =
+    [
+      creation_time: creation_time,
+      modification_time: modification_time
+    ] =
       Keyword.validate!(opts,
         creation_time: DateTime.utc_now(:second),
         modification_time: DateTime.utc_now(:second)
       )
       |> Enum.sort()
 
-    writer = Enum.reduce(Map.values(writer.tracks), writer, &flush_chunk(&2, &1))
+    writer =
+      writer.tracks
+      |> Map.values()
+      |> Enum.reduce(writer, &flush_chunk(&2, &1, &2.current_chunk[&1.id]))
 
-    movie_box =
+    trak =
       writer.tracks
       |> Map.values()
       |> Enum.sort_by(& &1.id)
-      |> Movie.assemble(movie_header_opts)
+      |> Enum.map(&Track.to_trak(&1, @movie_timescale))
+
+    moov = %Moov{
+      mvhd: %Box.Mvhd{
+        duration: Enum.map(trak, & &1.tkhd.duration) |> Enum.max(),
+        timescale: @movie_timescale,
+        next_track_id: length(trak) + 1,
+        creation_time: creation_time,
+        modification_time: modification_time
+      },
+      trak: trak
+    }
 
     after_ftyp = {:bof, writer.ftyp_size}
     mdat_total_size = @mdat_header_size + writer.mdat_size
 
     case fast_start do
       false ->
-        writer.writer_mod.write(writer.writer_state, Container.serialize!(movie_box))
+        writer.writer_mod.write(writer.writer_state, Box.serialize(moov))
         writer.writer_mod.write(writer.writer_state, <<mdat_total_size::32>>, after_ftyp)
 
       true ->
-        movie_box = Movie.adjust_chunk_offsets(movie_box) |> Container.serialize!()
+        movie_box = adjust_chunk_offset(moov) |> Box.serialize()
 
         writer.writer_mod.write(writer.writer_state, <<mdat_total_size::32>>, after_ftyp)
         writer.writer_mod.write(writer.writer_state, movie_box, after_ftyp, true)
@@ -196,12 +229,19 @@ defmodule ExMP4.Writer do
     end
   end
 
-  defp flush_chunk(writer, track) do
-    {chunk_data, track} = Track.flush_chunk(track, chunk_offset(writer))
+  defp flush_chunk(writer, _track, {[], _duration}), do: writer
+
+  defp flush_chunk(writer, track, {data, _duration}) do
+    track = Track.flush_chunk(track, chunk_offset(writer))
+
+    chunk_data = Enum.reverse(data)
+    chunk_size = Enum.map(chunk_data, &byte_size/1) |> Enum.sum()
+
     writer.writer_mod.write(writer.writer_state, chunk_data)
 
     writer = put_in(writer, [:tracks, track.id], track)
-    %{writer | mdat_size: writer.mdat_size + byte_size(chunk_data)}
+    writer = put_in(writer, [:current_chunk, track.id], {[], 0})
+    %{writer | mdat_size: writer.mdat_size + chunk_size}
   end
 
   defp chunk_offset(%{ftyp_size: ftyp_size, mdat_size: mdat_size}) do
@@ -209,6 +249,36 @@ defmodule ExMP4.Writer do
   end
 
   defp close(%__MODULE__{writer_mod: writer, writer_state: state}), do: writer.close(state)
+
+  defp new_sample_table() do
+    %Box.Stbl{
+      ctts: %Box.Ctts{},
+      stss: %Box.Stss{},
+      stsz: %Box.Stsz{},
+      stco: %Box.Stco{}
+    }
+  end
+
+  defp adjust_chunk_offset(%Moov{} = moov) do
+    size = Box.size(moov)
+
+    Map.update!(moov, :trak, fn traks ->
+      Enum.map(traks, fn trak ->
+        stbl = update_trak_offset(trak.mdia.minf.stbl, size)
+        %{trak | mdia: %{trak.mdia | minf: %{trak.mdia.minf | stbl: stbl}}}
+      end)
+    end)
+  end
+
+  defp update_trak_offset(stbl, size) do
+    case stbl do
+      %{stco: stco} when not is_nil(stco) ->
+        %{stbl | stco: %{stco | entries: Enum.map(stco.entries, &(&1 + size))}}
+
+      %{co64: co64} ->
+        %{stbl | co64: %{co64 | entries: Enum.map(co64.entries, &(&1 + size))}}
+    end
+  end
 
   defimpl Collectable do
     def into(writer) do

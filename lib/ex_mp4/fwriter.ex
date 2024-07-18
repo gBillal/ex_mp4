@@ -3,9 +3,7 @@ defmodule ExMP4.FWriter do
   Module responsible for writing fragmented MP4.
   """
 
-  alias ExMP4.Box.{FileType, Movie, MediaData, MovieExtendsBox, MovieFragment}
-  alias ExMP4.{Container, Track}
-  alias ExMP4.Track.{Fragment, SampleTable}
+  alias ExMP4.{Box, Track}
 
   @mdat_header_size 8
 
@@ -13,12 +11,12 @@ defmodule ExMP4.FWriter do
           writer_mod: module(),
           writer_state: term(),
           tracks: %{integer() => Track.t()},
-          current_fragments: %{integer() => Fragment.t()},
+          current_fragments: %{integer() => Box.Traf.t()},
           fragments_data: %{integer() => [binary()]},
           sequence_number: integer(),
           base_data_offset: integer(),
           ftyp_box_size: integer(),
-          movie_box: Container.t() | nil
+          movie_box: Box.Moov.t() | nil
         }
 
   @typedoc """
@@ -27,7 +25,7 @@ defmodule ExMP4.FWriter do
   @type new_opts :: [
           major_brand: binary(),
           compatible_brands: [binary()],
-          major_brand_version: integer(),
+          minor_version: integer(),
           creation_time: DateTime.t(),
           modification_time: DateTime.t(),
           duration: integer() | boolean()
@@ -91,7 +89,15 @@ defmodule ExMP4.FWriter do
     track_ids = Map.keys(tracks)
 
     fragments =
-      Map.new(track_ids, &{&1, Fragment.new(&1, base_media_decode_time: tracks[&1].duration)})
+      Map.new(track_ids, fn track_id ->
+        traf = %Box.Traf{
+          tfhd: %Box.Tfhd{track_id: track_id},
+          tfdt: %Box.Tfdt{base_media_decode_time: tracks[track_id].duration},
+          trun: [%Box.Trun{}]
+        }
+
+        {track_id, traf}
+      end)
 
     data = Enum.reduce(track_ids, writer.fragments_data, &Map.put(&2, &1, []))
 
@@ -108,7 +114,7 @@ defmodule ExMP4.FWriter do
   """
   @spec write_sample(t(), ExMP4.Sample.t()) :: t()
   def write_sample(%{current_fragments: fragments} = writer, sample) do
-    fragments = Map.update!(fragments, sample.track_id, &Fragment.store_sample(&1, sample))
+    fragments = Map.update!(fragments, sample.track_id, &Box.Traf.store_sample(&1, sample))
     fragments_data = Map.update!(writer.fragments_data, sample.track_id, &[sample.payload | &1])
 
     %{writer | current_fragments: fragments, fragments_data: fragments_data}
@@ -122,49 +128,50 @@ defmodule ExMP4.FWriter do
     track_ids = Map.keys(tracks) |> Enum.sort()
 
     fragments =
-      Map.new(writer.current_fragments, fn {track_id, moof} ->
-        {track_id, Fragment.flush(moof)}
+      Map.new(writer.current_fragments, fn {track_id, traf} ->
+        {track_id, Box.Traf.finalize(traf)}
       end)
 
-    movie_fragment = MovieFragment.assemble(Map.values(fragments), writer.sequence_number)
-    movie_fragment_size = Container.serialize!(movie_fragment) |> IO.iodata_length()
+    moof = %Box.Moof{
+      mfhd: %Box.Mfhd{sequence_number: writer.sequence_number},
+      traf: Map.values(fragments)
+    }
 
-    base_data_offset = writer.base_data_offset + movie_fragment_size + @mdat_header_size
+    base_data_offset = writer.base_data_offset + Box.size(moof) + @mdat_header_size
 
-    {tracks, base_offsets, base_data_offset} =
+    {tracks, fragments, base_data_offset} =
       Enum.reduce(
         track_ids,
-        {tracks, %{}, base_data_offset},
-        fn track_id, {tracks, base_offsets, base_data_offset} ->
+        {tracks, fragments, base_data_offset},
+        fn track_id, {tracks, fragments, base_data_offset} ->
           mdat_size =
             writer.fragments_data[track_id]
             |> Stream.map(&byte_size/1)
             |> Enum.sum()
 
-          moof = Fragment.update_base_data_offset(fragments[track_id], base_data_offset)
-          base_offsets = Map.put(base_offsets, track_id, base_data_offset)
-
-          tracks =
+          fragments =
             Map.update!(
-              tracks,
+              fragments,
               track_id,
-              &Track.add_fragment(&1, moof)
+              &%{&1 | tfhd: %{&1.tfhd | base_data_offset: base_data_offset}}
             )
 
-          {tracks, base_offsets, base_data_offset + mdat_size}
+          tracks =
+            Map.update!(tracks, track_id, fn track ->
+              traf_duration = Box.Traf.duration(fragments[track_id], %Box.Trex{})
+              %{track | duration: track.duration + traf_duration}
+            end)
+
+          {tracks, fragments, base_data_offset + mdat_size}
         end
       )
 
-    movie_fragment = MovieFragment.update_base_data_offsets(movie_fragment, base_offsets)
-
-    media_data =
-      track_ids
-      |> Enum.map(&Enum.reverse(writer.fragments_data[&1]))
-      |> MediaData.assemble()
+    moof = %{moof | traf: Enum.map(track_ids, &fragments[&1])}
+    mdat = %Box.Mdat{content: Enum.map(track_ids, &Enum.reverse(writer.fragments_data[&1]))}
 
     writer.writer_mod.write_fragment(writer.writer_state, [
-      Container.serialize!(movie_fragment),
-      Container.serialize!(media_data)
+      Box.serialize(moof),
+      Box.serialize(mdat)
     ])
 
     %{
@@ -181,21 +188,7 @@ defmodule ExMP4.FWriter do
   """
   @spec close(t()) :: :ok
   def close(writer) do
-    if writer.movie_box do
-      movie_box =
-        writer.tracks
-        |> Map.values()
-        |> Enum.map(&ExMP4.Helper.timescalify(&1.duration, &1.timescale, ExMP4.movie_timescale()))
-        |> Enum.max()
-        |> then(&Movie.update_fragment_duration(writer.movie_box, &1))
-
-      writer.writer_mod.write(
-        writer.writer_state,
-        Container.serialize!(movie_box),
-        {:bof, writer.ftyp_box_size}
-      )
-    end
-
+    update_fragment_duration(writer)
     writer.writer_mod.close(writer.writer_state)
   end
 
@@ -206,16 +199,7 @@ defmodule ExMP4.FWriter do
       tracks =
         tracks
         |> Enum.with_index(1)
-        |> Enum.map(fn {track, id} ->
-          %{
-            track
-            | id: id,
-              duration: 0,
-              sample_count: 0,
-              sample_table: %SampleTable{},
-              frag_sample_table: %Track.FragmentedSampleTable{}
-          }
-        end)
+        |> Enum.map(fn {track, id} -> new_track(id, track) end)
         |> Map.new(&{&1.id, &1})
 
       writer =
@@ -234,7 +218,7 @@ defmodule ExMP4.FWriter do
 
     Keyword.validate!(opts,
       major_brand: "isom",
-      major_brand_version: 512,
+      minor_version: 512,
       compatible_brands: ["isom", "iso2", "avc1", "mp41", "iso6"],
       creation_time: utc_date,
       modification_time: utc_date,
@@ -246,26 +230,75 @@ defmodule ExMP4.FWriter do
     tracks = Map.values(writer.tracks)
     fragment_duration = fragment_duration(opts[:duration])
 
-    ftyp_box =
-      FileType.assemble(opts[:major_brand], opts[:compatible_brands], opts[:major_brand_version])
+    ftyp_box = %Box.Ftyp{
+      major_brand: opts[:major_brand],
+      minor_version: opts[:minor_version],
+      compatible_brands: opts[:compatible_brands]
+    }
 
-    movie_box =
-      writer.tracks
-      |> Map.values()
-      |> Enum.sort_by(& &1.id)
-      |> Movie.assemble(opts, MovieExtendsBox.assemble(tracks, fragment_duration))
+    mehd_box =
+      if fragment_duration,
+        do: %Box.Mehd{fragment_duration: fragment_duration},
+        else: nil
 
-    ftyp_box_data = Container.serialize!(ftyp_box)
-    movie_box_data = Container.serialize!(movie_box)
+    movie_box = %Box.Moov{
+      mvhd: %Box.Mvhd{
+        creation_time: opts[:creation_time],
+        modification_time: opts[:modification_time],
+        next_track_id: length(tracks) + 1
+      },
+      trak: Enum.map(tracks, &Track.to_trak(&1, ExMP4.movie_timescale())),
+      mvex: %Box.Mvex{
+        mehd: mehd_box,
+        trex: Enum.map(tracks, & &1.trex)
+      }
+    }
 
-    writer.writer_mod.write_init_header(writer.writer_state, [ftyp_box_data, movie_box_data])
+    writer.writer_mod.write_init_header(writer.writer_state, [
+      Box.serialize(ftyp_box),
+      Box.serialize(movie_box)
+    ])
 
     %{
       writer
-      | base_data_offset: IO.iodata_length(ftyp_box_data) + IO.iodata_length(movie_box_data),
-        ftyp_box_size: IO.iodata_length(ftyp_box_data),
+      | base_data_offset: Box.size(ftyp_box) + Box.size(movie_box),
+        ftyp_box_size: Box.size(ftyp_box),
         movie_box: if(fragment_duration == 0, do: movie_box)
     }
+  end
+
+  defp new_track(track_id, track) do
+    %{
+      track
+      | id: track_id,
+        duration: 0,
+        sample_count: 0,
+        sample_table: %Box.Stbl{stsz: %Box.Stsz{}},
+        trex: %Box.Trex{
+          track_id: track_id,
+          default_sample_flags: if(track.type == :video, do: 0x10000, else: 0)
+        },
+        trafs: []
+    }
+  end
+
+  defp update_fragment_duration(%{movie_box: nil}), do: :ok
+
+  defp update_fragment_duration(%{movie_box: moov_box} = writer) do
+    fragment_duration =
+      writer.tracks
+      |> Map.values()
+      |> Enum.map(&ExMP4.Helper.timescalify(&1.duration, &1.timescale, ExMP4.movie_timescale()))
+      |> Enum.max()
+
+    mvex = moov_box.mvex
+    mvex = %{mvex | mehd: %{mvex.mehd | fragment_duration: fragment_duration}}
+
+    writer.writer_mod.write(
+      writer.writer_state,
+      Box.serialize(%{moov_box | mvex: mvex}),
+      {:bof, writer.ftyp_box_size}
+    )
   end
 
   defp fragment_duration(false), do: nil

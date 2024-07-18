@@ -19,31 +19,10 @@ defmodule ExMP4.WriterTest do
     writer = Writer.write_header(writer, major_brand: "iso2", compatible_brands: ["isom", "mp41"])
     writer = Writer.add_tracks(writer, [video_track(), audio_track()])
 
-    video_sample_1 =
-      Sample.new(track_id: 1, dts: 0, pts: 2000, sync?: true, payload: @video_payload)
-
-    video_sample_2 = Sample.new(track_id: 1, dts: 1000, pts: 4000, payload: @video_payload)
-    video_sample_3 = Sample.new(track_id: 1, dts: 2000, pts: 5000, payload: @video_payload)
-    video_sample_4 = Sample.new(track_id: 1, dts: 3000, pts: 3000, payload: @video_payload)
-
-    video_sample_5 =
-      Sample.new(track_id: 1, dts: 5000, pts: 7000, sync?: true, payload: @video_payload)
-
-    audio_sample_1 = Sample.new(track_id: 2, dts: 0, pts: 0, payload: @audio_payload)
-    audio_sample_2 = Sample.new(track_id: 2, dts: 24_000, pts: 24_000, payload: @audio_payload)
-    audio_sample_3 = Sample.new(track_id: 2, dts: 48_000, pts: 48_000, payload: @audio_payload)
-    audio_sample_4 = Sample.new(track_id: 2, dts: 70_000, pts: 70_000, payload: @audio_payload)
-
     assert :ok =
-             Writer.write_sample(writer, video_sample_1)
-             |> Writer.write_sample(video_sample_2)
-             |> Writer.write_sample(video_sample_3)
-             |> Writer.write_sample(video_sample_4)
-             |> Writer.write_sample(video_sample_5)
-             |> Writer.write_sample(audio_sample_1)
-             |> Writer.write_sample(audio_sample_2)
-             |> Writer.write_sample(audio_sample_3)
-             |> Writer.write_sample(audio_sample_4)
+             video_samples()
+             |> Enum.concat(audio_samples())
+             |> Enum.reduce(writer, &Writer.write_sample(&2, &1))
              |> Writer.write_trailer()
 
     assert {:ok, reader} = ExMP4.Reader.new(filepath)
@@ -62,7 +41,7 @@ defmodule ExMP4.WriterTest do
     assert %{
              id: 1,
              media: :h265,
-             priv_data: %ExMP4.Codec.Hevc{},
+             priv_data: %ExMP4.Box.Hvcc{},
              width: 1080,
              height: 720,
              timescale: 2000,
@@ -81,29 +60,12 @@ defmodule ExMP4.WriterTest do
              sample_count: 4
            } = audio_track
 
-    expected_result = [
-      {0, 2000, true},
-      {1000, 4000, false},
-      {2000, 5000, false},
-      {3000, 3000, false},
-      {5000, 7000, true}
-    ]
-
-    for {idx, {dts, pts, sync?}} <- Enum.with_index(expected_result) do
-      assert %Sample{
-               track_id: video_track.id,
-               dts: dts,
-               pts: pts,
-               sync?: sync?,
-               payload: @video_payload
-             } == ExMP4.Reader.read_sample(reader, video_track.id, idx)
+    for {sample, idx} <- Enum.with_index(video_samples()) do
+      assert sample == ExMP4.Reader.read_sample(reader, video_track.id, idx)
     end
 
-    expected_result = [{0, 2000}, {24_000, 24_000}, {48_000, 48_000}, {70_000, 70_000}]
-
-    for {idx, {dts, pts}} <- Enum.with_index(expected_result) do
-      assert %Sample{dts: ^dts, pts: ^pts, payload: @audio_payload} =
-               ExMP4.Reader.read_sample(reader, audio_track.id, idx)
+    for {sample, idx} <- Enum.with_index(audio_samples()) do
+      assert sample == ExMP4.Reader.read_sample(reader, audio_track.id, idx)
     end
 
     assert :ok = ExMP4.Reader.close(reader)
@@ -121,6 +83,7 @@ defmodule ExMP4.WriterTest do
         track_id: 1,
         dts: 0,
         pts: 2000,
+        duration: 1000,
         sync?: true,
         payload: @video_payload
       )
@@ -132,5 +95,44 @@ defmodule ExMP4.WriterTest do
 
     assert {:ok, data} = File.read(filepath)
     assert <<_ftyp::binary-size(32), _moov_size::binary-size(4), "moov", _rest::binary>> = data
+  end
+
+  defp video_samples() do
+    [
+      {0, 2000, 1000, true},
+      {1000, 4000, 1000, false},
+      {2000, 5000, 1000, false},
+      {3000, 3000, 2000, false},
+      {5000, 7000, 2000, true}
+    ]
+    |> Enum.map(fn {dts, pts, duration, sync?} ->
+      Sample.new(
+        track_id: 1,
+        dts: dts,
+        pts: pts,
+        duration: duration,
+        sync?: sync?,
+        payload: @video_payload
+      )
+    end)
+  end
+
+  defp audio_samples() do
+    [
+      {0, 0, 24_000},
+      {24_000, 24_000, 24_000},
+      {48_000, 48_000, 22_000},
+      {70_000, 70_000, 22_000}
+    ]
+    |> Enum.map(fn {dts, pts, duration} ->
+      Sample.new(
+        track_id: 2,
+        dts: dts,
+        pts: pts,
+        duration: duration,
+        sync?: true,
+        payload: @audio_payload
+      )
+    end)
   end
 end
