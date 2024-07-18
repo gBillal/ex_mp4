@@ -233,7 +233,7 @@ defmodule ExMP4.Track do
           | media: :h265,
             width: hevc.width,
             height: hevc.height,
-            priv_data: parse_priv_data(:h265, hevc.hvcC),
+            priv_data: hevc.hvcC,
             media_tag: if(stsd.hvc1, do: :hvc1, else: :hev1)
         }
 
@@ -243,7 +243,7 @@ defmodule ExMP4.Track do
           | media: :h264,
             width: avc.width,
             height: avc.height,
-            priv_data: parse_priv_data(:h264, avc.avcC),
+            priv_data: avc.avcC,
             media_tag: if(stsd.avc1, do: :avc1, else: :avc3)
         }
 
@@ -251,7 +251,7 @@ defmodule ExMP4.Track do
         %{
           track
           | media: :aac,
-            priv_data: parse_priv_data(:aac, mp4a.esds),
+            priv_data: mp4a.esds,
             channels: mp4a.channel_count,
             sample_rate: elem(mp4a.sample_rate, 0),
             media_tag: :esds
@@ -265,10 +265,6 @@ defmodule ExMP4.Track do
   defp get_sample_count(track, stbl) do
     %{track | sample_count: stbl.stsz.sample_count}
   end
-
-  defp parse_priv_data(:h264, priv_data), do: ExMP4.Codec.Avc.parse(priv_data)
-  defp parse_priv_data(:h265, priv_data), do: ExMP4.Codec.Hevc.parse(priv_data)
-  defp parse_priv_data(_codec, priv_data), do: priv_data
 
   # Samples storage
   defp update_stts(%{stts: stts} = stbl, %Sample{duration: duration}) do
@@ -343,7 +339,7 @@ defmodule ExMP4.Track do
       tag: track.media_tag && to_string(track.media_tag),
       width: track.width,
       height: track.height,
-      avcC: serialize_priv_data(:h264, track.priv_data)
+      avcC: track.priv_data
     }
 
     case track.media_tag do
@@ -357,7 +353,7 @@ defmodule ExMP4.Track do
       tag: track.media_tag && to_string(track.media_tag),
       width: track.width,
       height: track.height,
-      hvcC: serialize_priv_data(:h265, track.priv_data)
+      hvcC: track.priv_data
     }
 
     case track.media_tag do
@@ -371,18 +367,13 @@ defmodule ExMP4.Track do
       mp4a: %ExMP4.Box.Mp4a{
         channel_count: track.channels,
         sample_rate: {track.sample_rate, 0},
-        esds: serialize_priv_data(:aac, track.priv_data)
+        esds: track.priv_data
       }
     }
   end
 
   defp reverse_entries(nil), do: nil
   defp reverse_entries(%{entries: entries} = table), do: %{table | entries: Enum.reverse(entries)}
-
-  defp serialize_priv_data(_codec, data) when is_binary(data), do: data
-  defp serialize_priv_data(:h264, dcr), do: ExMP4.Codec.Avc.serialize(dcr)
-  defp serialize_priv_data(:h265, dcr), do: ExMP4.Codec.Hevc.serialize(dcr)
-  defp serialize_priv_data(codec, _priv_data), do: raise("No serializer for #{codec}")
 
   defimpl Enumerable do
     def reduce(track, {:suspend, acc}, fun) do

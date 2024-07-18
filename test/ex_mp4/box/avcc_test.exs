@@ -1,11 +1,11 @@
-defmodule ExMP4.Codec.AvcTest do
+defmodule ExMP4.Box.AvccTest do
   @moduledoc false
 
   use ExUnit.Case
 
-  alias ExMP4.Codec.Avc
+  alias ExMP4.Box.Avcc
 
-  @dcr %ExMP4.Codec.Avc{
+  @dcr %Avcc{
     spss: [
       <<103, 77, 64, 30, 217, 0, 160, 61, 176, 17, 0, 0, 3, 3, 233, 0, 0, 187, 128, 15, 22, 46,
         72>>
@@ -21,14 +21,14 @@ defmodule ExMP4.Codec.AvcTest do
                     0, 3, 3, 233, 0, 0, 187, 128, 15, 22, 46, 72, 1, 0, 4, 104, 235, 143, 32>>
 
   test "new" do
-    assert Avc.new(@dcr.spss, @dcr.ppss) == @dcr
+    assert Avcc.new(@dcr.spss, @dcr.ppss) == @dcr
   end
 
   test "serialize" do
-    assert Avc.serialize(@dcr) == @serialized_dcr
+    assert <<_size::32, "avcC", @serialized_dcr::binary>> = ExMP4.Box.serialize(@dcr)
   end
 
   test "parse" do
-    assert Avc.parse(@serialized_dcr) == @dcr
+    assert ExMP4.Box.parse(%Avcc{}, @serialized_dcr) == @dcr
   end
 end

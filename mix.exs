@@ -69,13 +69,13 @@ defmodule ExMP4.MixProject do
       source_ref: "v#{@version}",
       nest_modules_by_prefix: [
         ExMP4.Box,
-        ExMP4.Codec,
         ExMP4.Container,
         ExMP4.Track
       ],
       groups_for_modules: [
         Core: [
           "ExMP4",
+          "ExMP4.Track",
           "ExMP4.Reader",
           "ExMP4.Writer",
           "ExMP4.FWriter",
@@ -83,9 +83,6 @@ defmodule ExMP4.MixProject do
           "ExMP4.SampleMetadata",
           "ExMP4.Helper"
         ],
-        Parsing: ~r/^ExMP4\.Container($|\.)/,
-        Track: [~r/^ExMP4\.Track($|\.)/],
-        Codec: [~r/^ExMP4\.Codec($|\.)/],
         Behaviour: [
           ~r/^ExMP4\.DataReader($|\.)/,
           ~r/^ExMP4\.DataWriter($|\.)/,

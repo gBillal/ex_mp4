@@ -1,11 +1,11 @@
-defmodule ExMP4.Codec.HevcTest do
+defmodule ExMP4.Box.HvccTest do
   @moduledoc false
 
   use ExUnit.Case
 
-  alias ExMP4.Codec.Hevc
+  alias ExMP4.Box.Hvcc
 
-  @dcr %Hevc{
+  @dcr %Hvcc{
     vpss: [
       <<64, 1, 12, 1, 255, 255, 34, 32, 0, 0, 3, 0, 144, 0, 0, 3, 0, 0, 3, 0, 153, 24, 130, 64,
         192, 0, 0, 250, 64, 0, 23, 112, 58>>
@@ -40,10 +40,10 @@ defmodule ExMP4.Codec.HevcTest do
                     100>>
 
   test "serialize" do
-    assert Hevc.serialize(@dcr) == @serialized_dcr
+    assert <<_size::32, "hvcC", @serialized_dcr::binary>> = ExMP4.Box.serialize(@dcr)
   end
 
   test "parse" do
-    assert Hevc.parse(@serialized_dcr) == @dcr
+    assert ExMP4.Box.parse(%Hvcc{}, @serialized_dcr) == @dcr
   end
 end

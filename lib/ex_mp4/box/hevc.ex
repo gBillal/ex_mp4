@@ -5,7 +5,7 @@ defmodule ExMP4.Box.Hevc do
 
   import ExMP4.Box.Utils, only: [parse_header: 1]
 
-  alias ExMP4.Box.Pasp
+  alias ExMP4.Box.{Hvcc, Pasp}
 
   @type t :: %__MODULE__{
           tag: String.t() | nil,
@@ -17,7 +17,7 @@ defmodule ExMP4.Box.Hevc do
           frame_count: integer(),
           compressor_name: binary(),
           depth: integer(),
-          hvcC: binary(),
+          hvcC: Hvcc.t(),
           pasp: Pasp.t() | nil
         }
 
@@ -30,12 +30,12 @@ defmodule ExMP4.Box.Hevc do
             frame_count: 1,
             compressor_name: <<0::8*32>>,
             depth: 0x0018,
-            hvcC: <<>>,
+            hvcC: %Hvcc{},
             pasp: nil
 
   defimpl ExMP4.Box do
     def size(box) do
-      ExMP4.header_size() + 78 + byte_size(box.hvcC) + ExMP4.Box.size(box.pasp) + 8
+      ExMP4.header_size() + 78 + ExMP4.Box.size(box.hvcC) + ExMP4.Box.size(box.pasp)
     end
 
     def parse(
@@ -59,14 +59,12 @@ defmodule ExMP4.Box.Hevc do
     end
 
     def serialize(box) do
-      hvcc = <<byte_size(box.hvcC) + 8::32, "hvcC", box.hvcC::binary>>
-
       data =
         <<size(box)::32, box.tag || "hvc1"::binary, 0::48, box.data_reference_index::16, 0::128,
           box.width::16, box.height::16, box.horizresolution::32, box.vertresolution::32, 0::32,
           box.frame_count::16, box.compressor_name::binary, box.depth::16, -1::16-signed>>
 
-      [data, hvcc, ExMP4.Box.serialize(box.pasp)]
+      [data, ExMP4.Box.serialize(box.hvcC), ExMP4.Box.serialize(box.pasp)]
     end
 
     defp do_parse(box, <<>>), do: box
@@ -75,7 +73,7 @@ defmodule ExMP4.Box.Hevc do
       {box, rest} =
         case parse_header(data) do
           {"hvcC", box_data, rest} ->
-            box = %{box | hvcC: box_data}
+            box = %{box | hvcC: ExMP4.Box.parse(%Hvcc{}, box_data)}
             {box, rest}
 
           {"pasp", box_data, rest} ->

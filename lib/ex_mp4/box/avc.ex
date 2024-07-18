@@ -5,7 +5,7 @@ defmodule ExMP4.Box.Avc do
 
   import ExMP4.Box.Utils, only: [parse_header: 1]
 
-  alias ExMP4.Box.Pasp
+  alias ExMP4.Box.{Avcc, Pasp}
 
   @type t :: %__MODULE__{
           tag: String.t() | nil,
@@ -17,7 +17,7 @@ defmodule ExMP4.Box.Avc do
           frame_count: integer(),
           compressor_name: binary(),
           depth: integer(),
-          avcC: binary(),
+          avcC: Avcc.t(),
           pasp: Pasp.t() | nil
         }
 
@@ -30,13 +30,13 @@ defmodule ExMP4.Box.Avc do
             frame_count: 1,
             compressor_name: <<0::8*32>>,
             depth: 0x0018,
-            avcC: <<>>,
+            avcC: nil,
             pasp: nil
 
   defimpl ExMP4.Box do
     def size(box) do
       pasp_size = if box.pasp, do: ExMP4.Box.size(box.pasp), else: 0
-      ExMP4.header_size() + 78 + byte_size(box.avcC) + 8 + pasp_size
+      ExMP4.header_size() + 70 + ExMP4.Box.size(box.avcC) + 8 + pasp_size
     end
 
     def parse(
@@ -60,14 +60,12 @@ defmodule ExMP4.Box.Avc do
     end
 
     def serialize(box) do
-      avcc = <<byte_size(box.avcC) + 8::32, "avcC", box.avcC::binary>>
-
       data =
         <<size(box)::32, box.tag || "avc1"::binary, 0::48, box.data_reference_index::16, 0::128,
           box.width::16, box.height::16, box.horizresolution::32, box.vertresolution::32, 0::32,
           box.frame_count::16, box.compressor_name::binary, box.depth::16, -1::16-signed>>
 
-      [data, avcc, ExMP4.Box.serialize(box.pasp)]
+      [data, ExMP4.Box.serialize(box.avcC), ExMP4.Box.serialize(box.pasp)]
     end
 
     defp do_parse(box, <<>>), do: box
@@ -76,7 +74,7 @@ defmodule ExMP4.Box.Avc do
       {box, rest} =
         case parse_header(data) do
           {"avcC", box_data, rest} ->
-            box = %{box | avcC: box_data}
+            box = %{box | avcC: ExMP4.Box.parse(%Avcc{}, box_data)}
             {box, rest}
 
           {"pasp", box_data, rest} ->

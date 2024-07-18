@@ -41,7 +41,7 @@ defmodule ExMP4.WriterTest do
     assert %{
              id: 1,
              media: :h265,
-             priv_data: %ExMP4.Codec.Hevc{},
+             priv_data: %ExMP4.Box.Hvcc{},
              width: 1080,
              height: 720,
              timescale: 2000,
