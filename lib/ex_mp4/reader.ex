@@ -75,7 +75,8 @@ defmodule ExMP4.Reader do
           # private fields
           reader_mod: module(),
           reader_state: any(),
-          tracks: %{non_neg_integer() => Track.t()}
+          tracks: %{non_neg_integer() => Track.t()},
+          location: integer()
         }
 
   defstruct [
@@ -89,7 +90,8 @@ defmodule ExMP4.Reader do
     :modification_time,
     :reader_mod,
     :reader_state,
-    :tracks
+    :tracks,
+    location: 0
   ]
 
   @max_header_size 8
@@ -205,10 +207,11 @@ defmodule ExMP4.Reader do
         if reader.fragmented?, do: reverse_trafs(reader), else: reader
 
       data ->
-        {:ok, {box_type, content_size, rest}} = Box.Utils.try_parse_header(data)
+        {:ok, {box_type, header_size, content_size, rest}} = Box.Utils.try_parse_header(data)
 
         reader
         |> do_parse_metadata(box_type, content_size, rest)
+        |> then(&%{&1 | location: &1.location + header_size + content_size})
         |> parse_metadata()
     end
   end
@@ -260,6 +263,11 @@ defmodule ExMP4.Reader do
       traf_duration = Box.Traf.duration(traf, tracks[track_id].trex)
       sample_count = Box.Traf.sample_count(traf)
 
+      traf =
+        if traf.tfhd.base_is_moof?,
+          do: %{traf | tfhd: %{traf.tfhd | base_data_offset: reader.location}},
+          else: traf
+
       Map.update!(
         tracks,
         track_id,
@@ -276,7 +284,6 @@ defmodule ExMP4.Reader do
 
   defp do_parse_metadata(reader, _box_nale, content_size, rest) do
     skip(reader, content_size, rest)
-    reader
   end
 
   defp reverse_trafs(reader) do
@@ -296,6 +303,7 @@ defmodule ExMP4.Reader do
   defp skip(reader, content_size, rest) do
     amount_to_skip = content_size - byte_size(rest)
     reader.reader_mod.seek(reader.reader_state, {:cur, amount_to_skip})
+    reader
   end
 
   defp max_duration(reader, tracks) do
