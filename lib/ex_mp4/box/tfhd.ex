@@ -6,6 +6,7 @@ defmodule ExMP4.Box.Tfhd do
   @type t :: %__MODULE__{
           version: integer(),
           flags: integer(),
+          base_is_moof?: boolean(),
           track_id: integer(),
           base_data_offset: integer() | nil,
           sample_description_index: integer() | nil,
@@ -16,6 +17,7 @@ defmodule ExMP4.Box.Tfhd do
 
   defstruct version: 0,
             flags: 0,
+            base_is_moof?: false,
             track_id: 0,
             base_data_offset: 0,
             sample_description_index: nil,
@@ -54,6 +56,7 @@ defmodule ExMP4.Box.Tfhd do
         box
         | version: version,
           flags: flags,
+          base_is_moof?: Bitwise.band(flags, 0x1) == 0 and Bitwise.band(flags, 0x20000) != 0,
           track_id: track_id
       }
     end

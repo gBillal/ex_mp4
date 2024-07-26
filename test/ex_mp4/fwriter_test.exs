@@ -9,9 +9,6 @@ defmodule ExMP4.FWriterTest do
 
   @moduletag :tmp_dir
 
-  @video_payload <<1::40-integer-unit(8)>>
-  @audio_payload <<0::10-integer-unit(8)>>
-
   @video_samples [
     {0, 2000, 1000, true},
     {1000, 4000, 1000, false},
@@ -31,26 +28,29 @@ defmodule ExMP4.FWriterTest do
     filepath = Path.join(tmp_dir, "out.mp4")
     assert {:ok, writer} = FWriter.new(filepath, [video_track(), audio_track()])
 
+    video_samples = for idx <- 0..4, do: video_sample(idx)
+    audio_samples = for idx <- 0..3, do: audio_sample(idx)
+
     assert :ok =
              FWriter.create_fragment(writer)
-             |> FWriter.write_sample(video_sample(0))
-             |> FWriter.write_sample(video_sample(1))
-             |> FWriter.write_sample(video_sample(2))
-             |> FWriter.write_sample(audio_sample(0))
-             |> FWriter.write_sample(audio_sample(1))
+             |> FWriter.write_sample(Enum.at(video_samples, 0))
+             |> FWriter.write_sample(Enum.at(video_samples, 1))
+             |> FWriter.write_sample(Enum.at(video_samples, 2))
+             |> FWriter.write_sample(Enum.at(audio_samples, 0))
+             |> FWriter.write_sample(Enum.at(audio_samples, 1))
              |> FWriter.flush_fragment()
              |> FWriter.create_fragment()
-             |> FWriter.write_sample(video_sample(3))
-             |> FWriter.write_sample(video_sample(4))
-             |> FWriter.write_sample(audio_sample(2))
-             |> FWriter.write_sample(audio_sample(3))
+             |> FWriter.write_sample(Enum.at(video_samples, 3))
+             |> FWriter.write_sample(Enum.at(video_samples, 4))
+             |> FWriter.write_sample(Enum.at(audio_samples, 2))
+             |> FWriter.write_sample(Enum.at(audio_samples, 3))
              |> FWriter.flush_fragment()
              |> FWriter.close()
 
     assert {:ok, reader} = ExMP4.Reader.new(filepath)
 
-    assert reader.major_brand == "isom"
-    assert reader.compatible_brands == ["isom", "iso2", "avc1", "mp41", "iso6"]
+    assert reader.major_brand == "mp42"
+    assert reader.compatible_brands == ["mp42", "mp41", "isom", "avc1"]
     assert reader.duration == 3500
     assert reader.timescale == 1000
     assert reader.fragmented?
@@ -62,11 +62,61 @@ defmodule ExMP4.FWriterTest do
     refute is_nil(audio_track)
 
     for idx <- 0..4 do
-      assert video_sample(idx) == ExMP4.Reader.read_sample(reader, video_track.id, idx)
+      assert Enum.at(video_samples, idx) == ExMP4.Reader.read_sample(reader, video_track.id, idx)
     end
 
     for idx <- 0..3 do
-      assert audio_sample(idx) == ExMP4.Reader.read_sample(reader, audio_track.id, idx)
+      assert Enum.at(audio_samples, idx) == ExMP4.Reader.read_sample(reader, audio_track.id, idx)
+    end
+
+    assert :ok = ExMP4.Reader.close(reader)
+  end
+
+  test "write fragmented mp4 (base is moof)", %{tmp_dir: tmp_dir} do
+    filepath = Path.join(tmp_dir, "out.mp4")
+
+    assert {:ok, writer} =
+             FWriter.new(filepath, [video_track(), audio_track()], moof_base_offset: true)
+
+    video_samples = for idx <- 0..4, do: video_sample(idx)
+    audio_samples = for idx <- 0..3, do: audio_sample(idx)
+
+    assert :ok =
+             FWriter.create_fragment(writer)
+             |> FWriter.write_sample(Enum.at(video_samples, 0))
+             |> FWriter.write_sample(Enum.at(video_samples, 1))
+             |> FWriter.write_sample(Enum.at(video_samples, 2))
+             |> FWriter.write_sample(Enum.at(audio_samples, 0))
+             |> FWriter.write_sample(Enum.at(audio_samples, 1))
+             |> FWriter.flush_fragment()
+             |> FWriter.create_fragment()
+             |> FWriter.write_sample(Enum.at(video_samples, 3))
+             |> FWriter.write_sample(Enum.at(video_samples, 4))
+             |> FWriter.write_sample(Enum.at(audio_samples, 2))
+             |> FWriter.write_sample(Enum.at(audio_samples, 3))
+             |> FWriter.flush_fragment()
+             |> FWriter.close()
+
+    assert {:ok, reader} = ExMP4.Reader.new(filepath)
+
+    assert reader.major_brand == "iso5"
+    assert reader.compatible_brands == ["iso5", "iso6"]
+    assert reader.duration == 3500
+    assert reader.timescale == 1000
+    assert reader.fragmented?
+
+    video_track = Enum.find(ExMP4.Reader.tracks(reader), &(&1.type == :video))
+    audio_track = Enum.find(ExMP4.Reader.tracks(reader), &(&1.type == :audio))
+
+    refute is_nil(video_track)
+    refute is_nil(audio_track)
+
+    for idx <- 0..4 do
+      assert Enum.at(video_samples, idx) == ExMP4.Reader.read_sample(reader, video_track.id, idx)
+    end
+
+    for idx <- 0..3 do
+      assert Enum.at(audio_samples, idx) == ExMP4.Reader.read_sample(reader, audio_track.id, idx)
     end
 
     assert :ok = ExMP4.Reader.close(reader)
@@ -81,7 +131,7 @@ defmodule ExMP4.FWriterTest do
       pts: pts,
       duration: duration,
       sync?: sync?,
-      payload: @video_payload
+      payload: :crypto.strong_rand_bytes(:rand.uniform(100) + 50)
     )
   end
 
@@ -94,7 +144,7 @@ defmodule ExMP4.FWriterTest do
       pts: pts,
       duration: duration,
       sync?: true,
-      payload: @audio_payload
+      payload: :crypto.strong_rand_bytes(:rand.uniform(10) + 50)
     )
   end
 end

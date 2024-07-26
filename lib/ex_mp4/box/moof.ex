@@ -17,6 +17,29 @@ defmodule ExMP4.Box.Moof do
 
   defstruct mfhd: %Mfhd{}, traf: []
 
+  @doc """
+  Update the data base offset.
+
+  if `base_is_moof` is `false`, the `base_data_offset` is set in the `tfhd` box and
+  `trun` boxes updated to include the `data_offset` starting from 0 for the first `trun`.
+
+  If `base_is_moof` is `true`, the `base_data_offset` of `tfhd` is set to `0` and the first
+  `trun` will have `base_data_offset` as the starting offset.
+  """
+  @spec update_base_offsets(t(), integer(), boolean()) :: t()
+  def update_base_offsets(%{traf: trafs} = moof, base_data_offset, base_is_moof) do
+    {trafs, _offset} =
+      Enum.map_reduce(trafs, base_data_offset, fn traf, base_offset ->
+        new_offset = base_offset + Traf.total_size(traf)
+
+        if base_is_moof,
+          do: {Traf.update_base_offset(traf, 0, base_offset), new_offset},
+          else: {Traf.update_base_offset(traf, base_offset), new_offset}
+      end)
+
+    %{moof | traf: trafs}
+  end
+
   defimpl ExMP4.Box do
     def size(box) do
       ExMP4.header_size() + ExMP4.Box.size(box.mfhd) + ExMP4.Box.size(box.traf)

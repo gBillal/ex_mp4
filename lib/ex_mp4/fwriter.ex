@@ -16,7 +16,8 @@ defmodule ExMP4.FWriter do
           sequence_number: integer(),
           base_data_offset: integer(),
           ftyp_box_size: integer(),
-          movie_box: Box.Moov.t() | nil
+          movie_box: Box.Moov.t() | nil,
+          moof_base_offset: boolean()
         }
 
   @typedoc """
@@ -28,7 +29,8 @@ defmodule ExMP4.FWriter do
           minor_version: integer(),
           creation_time: DateTime.t(),
           modification_time: DateTime.t(),
-          duration: integer() | boolean()
+          duration: integer() | boolean(),
+          moof_base_offset: boolean()
         ]
 
   defstruct writer_mod: nil,
@@ -39,7 +41,8 @@ defmodule ExMP4.FWriter do
             sequence_number: 0,
             base_data_offset: 0,
             ftyp_box_size: 0,
-            movie_box: nil
+            movie_box: nil,
+            moof_base_offset: false
 
   @doc """
   Create a new mp4 writer that writes to filesystem.
@@ -60,6 +63,8 @@ defmodule ExMP4.FWriter do
       for presentations where the total duration is not available.
 
       If an integer, it's the total duration in the `movie` timescale and it'll be set in the `mehd` box.
+    * `moof_base_offset` - if `true`, it indicates that the `base‐data‐offset` for the track fragments
+      is the position of the first byte of the enclosing Movie Fragment Box. Defaults to: `false`.
 
   The last argument is an optional module implementing `ExMP4.FragDataWriter`.
   """
@@ -124,55 +129,39 @@ defmodule ExMP4.FWriter do
   Flush the current fragment.
   """
   @spec flush_fragment(t()) :: t()
-  def flush_fragment(%{tracks: tracks} = writer) do
+  def flush_fragment(%{tracks: tracks, moof_base_offset: moof_base_offset} = writer) do
     track_ids = Map.keys(tracks) |> Enum.sort()
 
     fragments =
       Map.new(writer.current_fragments, fn {track_id, traf} ->
-        {track_id, Box.Traf.finalize(traf)}
+        {track_id, Box.Traf.finalize(traf, moof_base_offset)}
       end)
 
     moof = %Box.Moof{
       mfhd: %Box.Mfhd{sequence_number: writer.sequence_number},
-      traf: Map.values(fragments)
+      traf: Enum.map(track_ids, &fragments[&1])
     }
 
     base_data_offset = writer.base_data_offset + Box.size(moof) + @mdat_header_size
-
-    {tracks, fragments, base_data_offset} =
-      Enum.reduce(
-        track_ids,
-        {tracks, fragments, base_data_offset},
-        fn track_id, {tracks, fragments, base_data_offset} ->
-          mdat_size =
-            writer.fragments_data[track_id]
-            |> Stream.map(&byte_size/1)
-            |> Enum.sum()
-
-          fragments =
-            Map.update!(
-              fragments,
-              track_id,
-              &%{&1 | tfhd: %{&1.tfhd | base_data_offset: base_data_offset}}
-            )
-
-          tracks =
-            Map.update!(tracks, track_id, fn track ->
-              traf_duration = Box.Traf.duration(fragments[track_id], %Box.Trex{})
-              %{track | duration: track.duration + traf_duration}
-            end)
-
-          {tracks, fragments, base_data_offset + mdat_size}
-        end
-      )
-
-    moof = %{moof | traf: Enum.map(track_ids, &fragments[&1])}
+    moof = Box.Moof.update_base_offsets(moof, base_data_offset, moof_base_offset)
     mdat = %Box.Mdat{content: Enum.map(track_ids, &Enum.reverse(writer.fragments_data[&1]))}
+
+    tracks =
+      Enum.reduce(moof.traf, tracks, fn traf, tracks ->
+        Map.update!(
+          tracks,
+          traf.tfhd.track_id,
+          &%{&1 | duration: &1.duration + Box.Traf.duration(traf)}
+        )
+      end)
 
     writer.writer_mod.write_fragment(writer.writer_state, [
       Box.serialize(moof),
       Box.serialize(mdat)
     ])
+
+    base_data_offset =
+      if moof_base_offset, do: 0, else: writer.base_data_offset + Box.size(moof) + Box.size(mdat)
 
     %{
       writer
@@ -206,7 +195,8 @@ defmodule ExMP4.FWriter do
         %__MODULE__{
           writer_mod: writer_mod,
           writer_state: writer_state,
-          tracks: tracks
+          tracks: tracks,
+          moof_base_offset: opts[:moof_base_offset]
         }
 
       {:ok, write_init_header(writer, opts)}
@@ -216,13 +206,17 @@ defmodule ExMP4.FWriter do
   defp validate_new_opts(opts) do
     utc_date = DateTime.utc_now()
 
+    moof_base_offset = Keyword.get(opts, :moof_base_offset, false)
+    {major_brand, compatible_brands} = brands(moof_base_offset)
+
     Keyword.validate!(opts,
-      major_brand: "isom",
+      major_brand: major_brand,
       minor_version: 512,
-      compatible_brands: ["isom", "iso2", "avc1", "mp41", "iso6"],
+      compatible_brands: compatible_brands,
       creation_time: utc_date,
       modification_time: utc_date,
-      duration: false
+      duration: false,
+      moof_base_offset: false
     )
   end
 
@@ -259,9 +253,15 @@ defmodule ExMP4.FWriter do
       Box.serialize(movie_box)
     ])
 
+    base_data_offset =
+      case writer.moof_base_offset do
+        true -> 0
+        false -> Box.size(ftyp_box) + Box.size(movie_box)
+      end
+
     %{
       writer
-      | base_data_offset: Box.size(ftyp_box) + Box.size(movie_box),
+      | base_data_offset: base_data_offset,
         ftyp_box_size: Box.size(ftyp_box),
         movie_box: if(fragment_duration == 0, do: movie_box)
     }
@@ -304,4 +304,7 @@ defmodule ExMP4.FWriter do
   defp fragment_duration(false), do: nil
   defp fragment_duration(true), do: 0
   defp fragment_duration(duration) when is_integer(duration), do: duration
+
+  defp brands(true), do: {"iso5", ["iso5", "iso6"]}
+  defp brands(_moof_base_offset), do: {"mp42", ["mp42", "mp41", "isom", "avc1"]}
 end

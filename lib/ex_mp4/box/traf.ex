@@ -74,8 +74,8 @@ defmodule ExMP4.Box.Traf do
     %{traf | trun: [run]}
   end
 
-  @spec finalize(t()) :: t()
-  def finalize(%{trun: [run], tfhd: tfhd} = traf) do
+  @spec finalize(t(), boolean()) :: t()
+  def finalize(%{trun: [run], tfhd: tfhd} = traf, base_is_moof? \\ false) do
     [first_entry | _entries] = run.entries
 
     {same_duration?, same_size?, same_flags?, zero_offset?} =
@@ -93,35 +93,47 @@ defmodule ExMP4.Box.Traf do
       )
 
     run_flags = run_flags(same_duration?, same_size?, same_flags?, zero_offset?)
-    tr_flags = tr_flags(same_duration?, same_size?, same_flags?)
+    tr_flags = tr_flags(same_duration?, same_size?, same_flags?, base_is_moof?)
 
     run = %{run | flags: run_flags, entries: Enum.reverse(run.entries)}
     %{traf | trun: [run], tfhd: track_header(tfhd, tr_flags, first_entry)}
   end
 
+  @spec update_base_offset(t(), integer(), integer()) :: t()
+  def update_base_offset(traf, base_offset, trun_data_offset \\ 0) do
+    %{trun: truns, tfhd: tfhd} = traf
+
+    tfhd = %{tfhd | base_data_offset: base_offset}
+
+    {truns, _offset} =
+      Enum.map_reduce(
+        truns,
+        trun_data_offset,
+        &{%{&1 | data_offset: &2}, &2 + trun_size(&1, tfhd)}
+      )
+
+    %{traf | tfhd: tfhd, trun: truns}
+  end
+
   @doc """
   Get the total size of the track fragment.
   """
-  @spec total_size(t(), ExMP4.Box.Trex.t()) :: integer()
-  def total_size(%{tfhd: tfhd} = traf, trex) do
-    Enum.reduce(traf.trun, 0, fn trun, size ->
-      if Bitwise.band(trun.flags, 0x200) == 0 do
-        size + trun.sample_count * (tfhd.default_sample_size || trex.default_sample_size)
-      else
-        size + (Enum.map(trun.entries, & &1.sample_size) |> Enum.sum())
-      end
-    end)
+  @spec total_size(t(), ExMP4.Box.Trex.t() | nil) :: integer()
+  def total_size(%{tfhd: tfhd} = traf, trex \\ nil) do
+    default_sample_size = (trex && trex.default_sample_size) || 0
+    Enum.reduce(traf.trun, 0, &(&2 + trun_size(&1, tfhd, default_sample_size)))
   end
 
   @doc """
   Get the total duration of the track fragment.
   """
-  @spec duration(t(), ExMP4.Box.Trex.t()) :: integer()
-  def duration(%{tfhd: tfhd} = traf, trex) do
+  @spec duration(t(), ExMP4.Box.Trex.t() | nil) :: integer()
+  def duration(%{tfhd: tfhd} = traf, trex \\ nil) do
+    default_sample_duration = (trex && trex.default_sample_duration) || 0
+
     Enum.reduce(traf.trun, 0, fn trun, duration ->
       if Bitwise.band(trun.flags, 0x100) == 0 do
-        duration +
-          trun.sample_count * (tfhd.default_sample_duration || trex.default_sample_duration)
+        duration + trun.sample_count * (tfhd.default_sample_duration || default_sample_duration)
       else
         duration + (Enum.map(trun.entries, & &1.sample_duration) |> Enum.sum())
       end
@@ -129,7 +141,7 @@ defmodule ExMP4.Box.Traf do
   end
 
   @doc """
-  Get the total duration of the track fragment.
+  Get the count of samples of the track fragment.
   """
   @spec sample_count(t()) :: integer()
   def sample_count(traf) do
@@ -144,8 +156,8 @@ defmodule ExMP4.Box.Traf do
     ) == 0
   end
 
-  defp tr_flags(same_duration?, same_size?, same_flags?) do
-    flags = 0x1
+  defp tr_flags(same_duration?, same_size?, same_flags?, base_is_moof?) do
+    flags = if base_is_moof?, do: 0x20000, else: 0x1
     flags = if same_duration?, do: Bitwise.bor(flags, 0x8), else: flags
     flags = if same_size?, do: Bitwise.bor(flags, 0x10), else: flags
     if same_flags?, do: Bitwise.bor(flags, 0x20), else: flags
@@ -171,6 +183,14 @@ defmodule ExMP4.Box.Traf do
         default_sample_size: size,
         default_sample_flags: flags
     }
+  end
+
+  defp trun_size(trun, tfhd, default_sample_size \\ 0) do
+    if Bitwise.band(trun.flags, 0x200) == 0 do
+      trun.sample_count * (tfhd.default_sample_size || default_sample_size)
+    else
+      Enum.map(trun.entries, & &1.sample_size) |> Enum.sum()
+    end
   end
 
   defimpl ExMP4.Box do
