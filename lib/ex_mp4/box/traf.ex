@@ -141,7 +141,7 @@ defmodule ExMP4.Box.Traf do
   end
 
   @doc """
-  Get the total duration of the track fragment.
+  Get the count of samples of the track fragment.
   """
   @spec sample_count(t()) :: integer()
   def sample_count(traf) do
