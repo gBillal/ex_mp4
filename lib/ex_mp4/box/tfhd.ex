@@ -1,6 +1,6 @@
 defmodule ExMP4.Box.Tfhd do
   @moduledoc """
-  A module repsenting an `tfhd` box.
+  A module representing an `tfhd` box.
   """
 
   @type t :: %__MODULE__{

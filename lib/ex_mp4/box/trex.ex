@@ -1,6 +1,6 @@
 defmodule ExMP4.Box.Trex do
   @moduledoc """
-  A module repsenting an `trex` box.
+  A module representing an `trex` box.
 
   This sets up default values used by the movie fragments. By setting defaults in this way,
   space and complexity can be saved in each Track Fragment Box.

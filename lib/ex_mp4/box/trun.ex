@@ -1,6 +1,6 @@
 defmodule ExMP4.Box.Trun do
   @moduledoc """
-  A module repsenting an `trun` box.
+  A module representing an `trun` box.
 
   A track run documents a contiguous set of samples for a track.
   """

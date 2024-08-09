@@ -20,8 +20,8 @@ defmodule ExMP4.Box.Mdhd do
 
   defstruct version: 0,
             flags: 0,
-            creation_time: to_date(0),
-            modification_time: to_date(0),
+            creation_time: base_date(),
+            modification_time: base_date(),
             timescale: 0,
             duration: 0,
             language: "und"

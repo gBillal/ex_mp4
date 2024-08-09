@@ -1,6 +1,6 @@
 defmodule ExMP4.Box.Moof do
   @moduledoc """
-  A module repsenting an `moof` box.
+  A module representing an `moof` box.
 
   The movie fragments extend the presentation in time. They provide the information that
   would previously have been in the Movie Box.

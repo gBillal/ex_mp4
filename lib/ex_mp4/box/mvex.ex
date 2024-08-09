@@ -1,6 +1,6 @@
 defmodule ExMP4.Box.Mvex do
   @moduledoc """
-  A module repsenting an `mvex` box.
+  A module representing an `mvex` box.
 
   This box warns readers that there might be Movie Fragment Boxes in this file.
   """

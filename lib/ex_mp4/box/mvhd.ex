@@ -20,8 +20,8 @@ defmodule ExMP4.Box.Mvhd do
 
   defstruct version: 0,
             flags: 0,
-            creation_time: to_date(0),
-            modification_time: to_date(0),
+            creation_time: base_date(),
+            modification_time: base_date(),
             timescale: 1_000,
             duration: 0,
             rate: 0x00010000,
