@@ -1,6 +1,6 @@
 defmodule ExMP4.Box.Traf do
   @moduledoc """
-  A module repsenting an `traf` box.
+  A module representing an `traf` box.
   """
 
   import ExMP4.Box.Utils, only: [parse_header: 1]

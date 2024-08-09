@@ -1,6 +1,6 @@
 defmodule ExMP4.Box.Tfdt do
   @moduledoc """
-  A module repsenting an `tfdt` box.
+  A module representing an `tfdt` box.
 
   The Track Fragment Base Media Decode Time Box provides the absolute decode time,
   measured on the media timeline, of the first sample in decode order in the track fragment.

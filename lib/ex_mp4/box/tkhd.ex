@@ -22,8 +22,8 @@ defmodule ExMP4.Box.Tkhd do
 
   defstruct version: 0,
             flags: 7,
-            creation_time: to_date(0),
-            modification_time: to_date(0),
+            creation_time: base_date(),
+            modification_time: base_date(),
             track_id: 0,
             duration: 0,
             layer: 0,

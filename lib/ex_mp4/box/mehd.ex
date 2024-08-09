@@ -1,6 +1,6 @@
 defmodule ExMP4.Box.Mehd do
   @moduledoc """
-  A module repsenting an `mehd` box.
+  A module representing an `mehd` box.
 
   The Movie Extends Header is optional, and provides the overall duration, including fragments,
   of a fragmented movie. If this box is not present, the overall duration must be computed

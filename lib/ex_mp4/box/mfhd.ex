@@ -1,6 +1,6 @@
 defmodule ExMP4.Box.Mfhd do
   @moduledoc """
-  A module repsenting an `mfhd` box.
+  A module representing an `mfhd` box.
 
   The movie fragment header contains a sequence number, as a safety check.
   """
