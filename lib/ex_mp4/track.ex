@@ -70,6 +70,10 @@ defmodule ExMP4.Track do
     _stsc_entry: %{first_chunk: 1, samples_per_chunk: 0, sample_description_index: 1}
   ]
 
+  @doc false
+  def updatable_fields(),
+    do: ~w(type media media_tag width height sample_rate channels priv_data)a
+
   @spec from_trak(Trak.t()) :: t()
   def from_trak(%Trak{} = trak) do
     stbl = trak.mdia.minf.stbl
