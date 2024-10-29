@@ -128,6 +128,28 @@ defmodule ExMP4.Writer do
   end
 
   @doc """
+  Get all the available tracks.
+  """
+  @spec tracks(t()) :: [Track.t()]
+  def tracks(%__MODULE__{} = writer), do: Map.values(writer.tracks)
+
+  @doc """
+  Update a track.
+
+  Only the following fields can be updated: `#{Track.updatable_fields() |> Enum.join(" ")}`
+  """
+  @spec update_track(t(), Track.id(), Keyword.t()) :: t()
+  def update_track(%__MODULE__{} = writer, track_id, opts) do
+    opts =
+      opts
+      |> Keyword.take(Track.updatable_fields())
+      |> Map.new()
+
+    track = track!(writer, track_id) |> Map.merge(opts)
+    put_in(writer, [:tracks, track_id], track)
+  end
+
+  @doc """
   Write a sample.
   """
   @spec write_sample(t(), ExMP4.Sample.t()) :: t()
