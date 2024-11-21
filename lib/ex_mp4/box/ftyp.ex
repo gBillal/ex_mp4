@@ -1,6 +1,6 @@
 defmodule ExMP4.Box.Ftyp do
   @moduledoc """
-  A module repsenting an `ftyp` box.
+  A module representing an `ftyp` box.
   """
 
   @type t :: %__MODULE__{

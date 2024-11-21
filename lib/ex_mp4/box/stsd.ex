@@ -9,7 +9,7 @@ defmodule ExMP4.Box.Stsd do
   import ExMP4.Box.Utils, only: [parse_header: 1]
 
   alias ExMP4.Box
-  alias ExMP4.Box.{Avc, Hevc, Mp4a}
+  alias ExMP4.Box.{Avc, Hevc, Mp4a, VP08, VP09}
 
   @type t :: %__MODULE__{
           version: integer(),
@@ -18,15 +18,26 @@ defmodule ExMP4.Box.Stsd do
           avc3: Avc.t() | nil,
           mp4a: Mp4a.t() | nil,
           hvc1: Hevc.t() | nil,
-          hev1: Hevc.t() | nil
+          hev1: Hevc.t() | nil,
+          vp08: VP08.t() | nil,
+          vp09: VP09.t() | nil
         }
 
-  defstruct version: 0, flags: 0, avc1: nil, avc3: nil, mp4a: nil, hvc1: nil, hev1: nil
+  defstruct version: 0,
+            flags: 0,
+            avc1: nil,
+            avc3: nil,
+            mp4a: nil,
+            hvc1: nil,
+            hev1: nil,
+            vp08: nil,
+            vp09: nil
 
   defimpl ExMP4.Box do
     def size(box) do
       ExMP4.full_box_header_size() + 4 + Box.size(box.avc1) + Box.size(box.avc3) +
-        Box.size(box.mp4a) + +Box.size(box.hvc1) + +Box.size(box.hev1)
+        Box.size(box.mp4a) + +Box.size(box.hvc1) + Box.size(box.hev1) + Box.size(box.vp08) +
+        Box.size(box.vp09)
     end
 
     def parse(box, <<version::8, flags::24, 1::32, rest::binary>>) do
@@ -41,7 +52,9 @@ defmodule ExMP4.Box.Stsd do
         Box.serialize(box.avc3),
         Box.serialize(box.mp4a),
         Box.serialize(box.hvc1),
-        Box.serialize(box.hev1)
+        Box.serialize(box.hev1),
+        Box.serialize(box.vp08),
+        Box.serialize(box.vp09)
       ]
     end
 
@@ -68,6 +81,14 @@ defmodule ExMP4.Box.Stsd do
 
           {"hev1", box_data, rest} ->
             box = %{box | hev1: ExMP4.Box.parse(%Hevc{}, box_data)}
+            {box, rest}
+
+          {"vp08", box_data, rest} ->
+            box = %{box | vp08: ExMP4.Box.parse(%VP08{}, box_data)}
+            {box, rest}
+
+          {"vp09", box_data, rest} ->
+            box = %{box | vp09: ExMP4.Box.parse(%VP09{}, box_data)}
             {box, rest}
 
           {_box_name, _box_data, rest} ->
