@@ -19,7 +19,13 @@ defmodule ExMP4.Box.Hdlr do
     def size(box), do: ExMP4.full_box_header_size() + byte_size(box.name) + 21
 
     def parse(box, <<version::8, flags::24, 0::32, type::binary-size(4), 0::32*3, name::binary>>) do
-      %{box | version: version, flags: flags, handler_type: type, name: String.slice(name, 0..-2)}
+      %{
+        box
+        | version: version,
+          flags: flags,
+          handler_type: type,
+          name: String.slice(name, 0..-2//1)
+      }
     end
 
     def serialize(box) do

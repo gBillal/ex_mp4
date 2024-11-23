@@ -26,7 +26,7 @@ defmodule ExMP4.Box.VP09 do
             horizresolution: 0x00480000,
             vertresolution: 0x00480000,
             frame_count: 1,
-            compressor_name: <<10, "VPC Coding", 0::21>>,
+            compressor_name: <<10, "VPC Coding", 0::21*8>>,
             depth: 0x0018,
             vpcC: nil,
             pasp: nil
