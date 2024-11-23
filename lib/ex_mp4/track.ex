@@ -7,6 +7,8 @@ defmodule ExMP4.Track do
   alias ExMP4.{Helper, Sample}
 
   @type id :: non_neg_integer()
+  @type codecs :: :h264 | :h265 | :vp8 | :vp9 | :aac | :opus | :unknown
+  @type media_types :: :video | :audio | :subtitle | :unknown
 
   @typedoc """
   Struct describing an mp4 track.
@@ -31,8 +33,8 @@ defmodule ExMP4.Track do
   """
   @type t :: %__MODULE__{
           id: id(),
-          type: :video | :audio | :subtitle | :unknown,
-          media: :h264 | :h265 | :aac | :opus | :unknown,
+          type: media_types(),
+          media: codecs(),
           media_tag: atom(),
           priv_data: binary() | struct(),
           duration: non_neg_integer(),
@@ -81,7 +83,7 @@ defmodule ExMP4.Track do
     %__MODULE__{id: trak.tkhd.track_id, sample_table: stbl}
     |> get_track_type(trak)
     |> get_duration(trak)
-    |> get_media(stbl)
+    |> get_media(stbl.stsd)
     |> get_sample_count(stbl)
   end
 
@@ -229,41 +231,62 @@ defmodule ExMP4.Track do
     }
   end
 
-  defp get_media(track, %{stsd: stsd}) do
-    cond do
-      hevc = stsd.hvc1 || stsd.hev1 ->
-        %{
-          track
-          | media: :h265,
-            width: hevc.width,
-            height: hevc.height,
-            priv_data: hevc.hvcC,
-            media_tag: if(stsd.hvc1, do: :hvc1, else: :hev1)
-        }
+  defp get_media(track, %{hvc1: hvc1, hev1: hev1}) when not is_nil(hvc1) or not is_nil(hev1) do
+    hevc = hvc1 || hev1
 
-      avc = stsd.avc1 || stsd.avc3 ->
-        %{
-          track
-          | media: :h264,
-            width: avc.width,
-            height: avc.height,
-            priv_data: avc.avcC,
-            media_tag: if(stsd.avc1, do: :avc1, else: :avc3)
-        }
+    %{
+      track
+      | media: :h265,
+        width: hevc.width,
+        height: hevc.height,
+        priv_data: hevc.hvcC,
+        media_tag: if(hvc1, do: :hvc1, else: :hev1)
+    }
+  end
 
-      mp4a = stsd.mp4a ->
-        %{
-          track
-          | media: :aac,
-            priv_data: mp4a.esds,
-            channels: mp4a.channel_count,
-            sample_rate: elem(mp4a.sample_rate, 0),
-            media_tag: :esds
-        }
+  defp get_media(track, %{avc1: avc1, avc3: avc3}) when not is_nil(avc1) or not is_nil(avc3) do
+    avc = avc1 || avc3
 
-      true ->
-        %{track | media: :unknown}
-    end
+    %{
+      track
+      | media: :h264,
+        width: avc.width,
+        height: avc.height,
+        priv_data: avc.avcC,
+        media_tag: if(avc1, do: :avc1, else: :avc3)
+    }
+  end
+
+  defp get_media(track, %{vp08: vp08, vp09: vp09}) when not is_nil(vp08) or not is_nil(vp09) do
+    {vpx, media, media_tag} =
+      case vp08 do
+        nil -> {vp09, :vp9, :vp09}
+        _other -> {vp08, :vp8, :vp08}
+      end
+
+    %{
+      track
+      | media: media,
+        width: vpx.width,
+        height: vpx.height,
+        priv_data: vpx.vpcC,
+        media_tag: media_tag
+    }
+  end
+
+  defp get_media(track, %{mp4a: mp4a}) when not is_nil(mp4a) do
+    %{
+      track
+      | media: :aac,
+        priv_data: mp4a.esds,
+        channels: mp4a.channel_count,
+        sample_rate: elem(mp4a.sample_rate, 0),
+        media_tag: :esds
+    }
+  end
+
+  defp get_media(track, _stsd) do
+    %{track | media: :unknown}
   end
 
   defp get_sample_count(track, stbl) do
@@ -364,6 +387,26 @@ defmodule ExMP4.Track do
       :hev1 -> %ExMP4.Box.Stsd{hev1: hevc}
       _other -> %ExMP4.Box.Stsd{hvc1: hevc}
     end
+  end
+
+  defp sample_description_table(%{media: :vp8} = track) do
+    vpx = %ExMP4.Box.VP08{
+      width: track.width,
+      height: track.height,
+      vpcC: track.priv_data
+    }
+
+    %ExMP4.Box.Stsd{vp08: vpx}
+  end
+
+  defp sample_description_table(%{media: :vp9} = track) do
+    vpx = %ExMP4.Box.VP09{
+      width: track.width,
+      height: track.height,
+      vpcC: track.priv_data
+    }
+
+    %ExMP4.Box.Stsd{vp09: vpx}
   end
 
   defp sample_description_table(%{media: :aac} = track) do
