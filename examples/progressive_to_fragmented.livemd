@@ -44,7 +44,7 @@ defmodule MP4Converter do
 
     {writer, _durations} =
       Reader.stream(reader)
-      |> Stream.map(&Reader.samples(reader, &1))
+      |> Stream.map(&Reader.read_sample(reader, &1))
       |> Enum.reduce({writer, curr_durations}, fn sample, {writer, curr_durations} ->
         curr_durations = Map.update!(curr_durations, sample.track_id, &(&1 + sample.duration))
 
