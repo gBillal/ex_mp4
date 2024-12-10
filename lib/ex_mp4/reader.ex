@@ -50,7 +50,7 @@ defmodule ExMP4.Reader do
   """
 
   alias ExMP4.Box
-  alias ExMP4.{Helper, Sample, Track}
+  alias ExMP4.{Helper, Sample, SampleMetadata, Track}
 
   @typedoc """
   Stream options.
@@ -118,7 +118,7 @@ defmodule ExMP4.Reader do
   def new!(filename, module \\ ExMP4.DataReader.File) do
     case new(filename, module) do
       {:ok, reader} -> reader
-      {:error, reason} -> raise "could not open reader: #{inspect(reason)}"
+      {:error, reason} -> raise "cannot open reader: #{inspect(reason)}"
     end
   end
 
@@ -154,6 +154,14 @@ defmodule ExMP4.Reader do
   end
 
   @doc """
+  Read a sample by providing a sample metadata.
+  """
+  @spec read_sample(t(), SampleMetadata.t()) :: Sample.t()
+  def read_sample(%__MODULE__{} = reader, %SampleMetadata{} = metadata) do
+    do_get_sample(metadata, reader)
+  end
+
+  @doc """
   Stream the samples' metadata.
 
   The samples are retrieved ordered by their `dts` value.
@@ -174,14 +182,6 @@ defmodule ExMP4.Reader do
       &next_element(&1, []),
       fn _acc -> [] end
     )
-  end
-
-  @doc """
-  Get samples.
-  """
-  @spec samples(Enumerable.t(), t()) :: Enumerable.t()
-  def samples(metadata_stream, reader) do
-    Stream.map(metadata_stream, &do_get_sample(&1, reader))
   end
 
   @doc """

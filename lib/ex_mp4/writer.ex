@@ -56,7 +56,7 @@ defmodule ExMP4.Writer do
   def new!(filepath, opts \\ [], module \\ ExMP4.DataWriter.File) do
     case new(filepath, opts, module) do
       {:ok, writer} -> writer
-      {:error, reason} -> raise "could not open writer: #{inspect(reason)}"
+      {:error, reason} -> raise "cannot not open writer: #{inspect(reason)}"
     end
   end
 

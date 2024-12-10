@@ -38,7 +38,7 @@ defmodule ExMP4.DataWriter.File do
          :ok <- :file.delete(tmp_file) do
       :ok
     else
-      error -> raise "could not pwrite: #{inspect(error)}"
+      error -> raise "cannot pwrite: #{inspect(error)}"
     end
   end
 
@@ -50,7 +50,7 @@ defmodule ExMP4.DataWriter.File do
   defp position!(fd, position) do
     case :file.position(fd, position) do
       {:ok, _new_pos} -> :ok
-      {:error, reason} -> raise "could not seek into file: #{inspect(reason)}"
+      {:error, reason} -> raise "cannot seek into file: #{inspect(reason)}"
     end
   end
 end

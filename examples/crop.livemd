@@ -52,7 +52,7 @@ defmodule VideoCropper do
       {s, e} = track_ranges[metadata.track_id]
       metadata.dts >= s and metadata.dts <= e
     end)
-    |> Reader.samples(reader)
+    |> Stream.map(&Reader.read_sample(reader, &1))
     |> Enum.into(writer)
     |> Writer.write_trailer()
   end
