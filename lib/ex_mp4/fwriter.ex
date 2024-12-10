@@ -80,7 +80,7 @@ defmodule ExMP4.FWriter do
   def new!(filepath, tracks, opts \\ [], module \\ ExMP4.FragDataWriter.File) do
     case new(filepath, tracks, opts, module) do
       {:ok, writer} -> writer
-      {:error, reason} -> raise "could not open writer: #{inspect(reason)}"
+      {:error, reason} -> raise "cannot open writer: #{inspect(reason)}"
     end
   end
 
