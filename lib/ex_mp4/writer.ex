@@ -61,6 +61,18 @@ defmodule ExMP4.Writer do
   end
 
   @doc """
+  Get a track by id or type.
+  """
+  @spec track(t(), integer() | atom()) :: Track.t() | nil
+  def track(writer, id_or_type) when is_atom(id_or_type) do
+    Map.values(writer.tracks) |> Enum.find(&(&1.type == id_or_type))
+  end
+
+  def track(writer, id_or_type) when is_integer(id_or_type) do
+    Map.get(writer.tracks, id_or_type)
+  end
+
+  @doc """
   Write the mp4 header.
 
   This function should be called first before adding tracks.

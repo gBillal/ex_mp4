@@ -129,6 +129,18 @@ defmodule ExMP4.Reader do
   def tracks(reader), do: Map.values(reader.tracks)
 
   @doc """
+  Get a track by id or type.
+  """
+  @spec track(t(), integer() | atom()) :: Track.t() | nil
+  def track(reader, id_or_type) when is_atom(id_or_type) do
+    Map.values(reader.tracks) |> Enum.find(&(&1.type == id_or_type))
+  end
+
+  def track(reader, id_or_type) when is_integer(id_or_type) do
+    Map.get(reader.tracks, id_or_type)
+  end
+
+  @doc """
   Get the duration of the stream.
   """
   @spec duration(t(), Helper.timescale()) :: non_neg_integer()
