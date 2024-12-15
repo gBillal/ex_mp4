@@ -85,6 +85,16 @@ defmodule ExMP4.FWriter do
   end
 
   @doc """
+  Get a track by id or type.
+  """
+  @spec track(t(), integer() | atom()) :: Track.t() | nil
+  def track(writer, type) when is_atom(type) do
+    Map.values(writer.tracks) |> Enum.find(&(&1.type == type))
+  end
+
+  def track(writer, id) when is_integer(id), do: Map.get(writer.tracks, id)
+
+  @doc """
   Create a new empty fragment.
 
   After adding samples, the fragment should be flushed, with `flush_fragment/1`.
