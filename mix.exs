@@ -1,7 +1,7 @@
 defmodule ExMP4.MixProject do
   use Mix.Project
 
-  @version "0.8.0"
+  @version "0.8.1"
   @github_url "https://github.com/gBillal/ex_mp4"
 
   def project do
@@ -39,6 +39,7 @@ defmodule ExMP4.MixProject do
     [
       {:ratio, "~> 4.0"},
       {:bunch, "~> 1.6"},
+      {:table_rex, "~> 4.0", optional: true},
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false},
       {:dialyxir, ">= 0.0.0", only: :dev, runtime: false},
       {:credo, ">= 0.0.0", only: :dev, runtime: false}
@@ -68,8 +69,8 @@ defmodule ExMP4.MixProject do
       formatters: ["html"],
       source_ref: "v#{@version}",
       nest_modules_by_prefix: [
+        ExMP4.BitStreamFilter,
         ExMP4.Box,
-        ExMP4.Container,
         ExMP4.Track
       ],
       groups_for_modules: [
@@ -83,11 +84,15 @@ defmodule ExMP4.MixProject do
           "ExMP4.SampleMetadata",
           "ExMP4.Helper"
         ],
+        Display: [
+          "ExMP4.Reader.Display"
+        ],
         Behaviour: [
           ~r/^ExMP4\.DataReader($|\.)/,
           ~r/^ExMP4\.DataWriter($|\.)/,
           ~r/^ExMP4\.FragDataWriter($|\.)/
         ],
+        BitStream: ~r/^ExMP4\.BitStreamFilter($|\.)/,
         Box: ~r/^ExMP4\.Box($|\.)/
       ]
     ]

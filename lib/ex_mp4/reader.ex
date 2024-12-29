@@ -7,6 +7,7 @@ defmodule ExMP4.Reader do
     * `duration` - The duration of the mp4 mapped in `:timescale` unit.
     * `timescale` - The timescale of the mp4.
     * `fragmented?` - The MP4 file is fragmented.
+    * `progressive?` - The MP4 file is progressive.
     * `creation_time` - Creation date time of the presentation.
     * `modification_time` - Modification date time of the presentation.
     * `major_brand`
@@ -57,7 +58,7 @@ defmodule ExMP4.Reader do
 
     - `tracks` - stream only the specified tracks.
   """
-  @type stream_opts :: [tracks: [non_neg_integer()]]
+  @type stream_opts :: [tracks: [non_neg_integer()] | non_neg_integer()]
 
   @typedoc """
   Struct describing an MP4 reader.
@@ -69,6 +70,7 @@ defmodule ExMP4.Reader do
           minor_version: integer(),
           compatible_brands: [binary()],
           fragmented?: boolean(),
+          progressive?: boolean(),
           creation_time: DateTime.t(),
           modification_time: DateTime.t(),
 
@@ -86,6 +88,7 @@ defmodule ExMP4.Reader do
     :minor_version,
     :compatible_brands,
     :fragmented?,
+    :progressive?,
     :creation_time,
     :modification_time,
     :reader_mod,
@@ -184,6 +187,7 @@ defmodule ExMP4.Reader do
 
     acc =
       Keyword.get(opts, :tracks, Map.keys(reader.tracks))
+      |> List.wrap()
       |> Enum.map(fn track_id ->
         track = Map.fetch!(reader.tracks, track_id)
         {track, nil, &Enumerable.reduce(track, &1, step)}
@@ -263,6 +267,7 @@ defmodule ExMP4.Reader do
         creation_time: moov.mvhd.creation_time,
         modification_time: moov.mvhd.modification_time,
         fragmented?: not is_nil(moov.mvex),
+        progressive?: is_nil(reader.progressive?),
         tracks: tracks
     }
   end
@@ -294,7 +299,12 @@ defmodule ExMP4.Reader do
     |> then(&%{reader | tracks: &1, duration: max_duration(reader, Map.values(&1))})
   end
 
-  defp do_parse_metadata(reader, _box_nale, content_size, rest) do
+  defp do_parse_metadata(reader, box_name, content_size, rest) do
+    reader =
+      if box_name == "mdat",
+        do: %{reader | progressive?: reader.progressive? || false},
+        else: reader
+
     skip(reader, content_size, rest)
   end
 
