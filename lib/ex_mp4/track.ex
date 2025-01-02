@@ -10,6 +10,8 @@ defmodule ExMP4.Track do
   @type codecs :: :h264 | :h265 | :vp8 | :vp9 | :aac | :opus | :unknown
   @type media_types :: :video | :audio | :subtitle | :unknown
 
+  @public_fields ~w(id type media media_tag width height sample_rate channels priv_data timescale duration sample_count)a
+
   @typedoc """
   Struct describing an mp4 track.
 
@@ -49,6 +51,7 @@ defmodule ExMP4.Track do
           trex: Trex.t() | nil
         }
 
+  @derive {Inspect, only: @public_fields}
   defstruct [
     :id,
     :type,

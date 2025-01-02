@@ -223,17 +223,29 @@ defmodule ExMP4.Reader do
         if reader.fragmented?, do: reverse_trafs(reader), else: reader
 
       data ->
-        {:ok, {box_type, header_size, content_size, rest}} = Box.Utils.try_parse_header(data)
+        {box_type, header_size, content_size} = parse_box_header(reader, data)
 
         reader
-        |> do_parse_metadata(box_type, content_size, rest)
+        |> do_parse_metadata(box_type, content_size)
         |> then(&%{&1 | location: &1.location + header_size + content_size})
         |> parse_metadata()
     end
   end
 
-  defp do_parse_metadata(reader, "ftyp", content_size, rest) do
-    ftyp = Box.parse(%Box.Ftyp{}, read_box(reader, content_size, rest))
+  defp parse_box_header(reader, data) do
+    case Box.Utils.try_parse_header(data) do
+      {:ok, box_type, content_size} ->
+        {box_type, @max_header_size, content_size}
+
+      {:more, box_type} ->
+        <<content_size::64>> = reader.reader_mod.read(reader.reader_state, @max_header_size)
+        header_size = 2 * @max_header_size
+        {box_type, header_size, content_size - header_size}
+    end
+  end
+
+  defp do_parse_metadata(reader, "ftyp", content_size) do
+    ftyp = Box.parse(%Box.Ftyp{}, read_box(reader, content_size))
 
     %{
       reader
@@ -243,8 +255,8 @@ defmodule ExMP4.Reader do
     }
   end
 
-  defp do_parse_metadata(reader, "moov", content_size, rest) do
-    moov = Box.parse(%Box.Moov{}, read_box(reader, content_size, rest))
+  defp do_parse_metadata(reader, "moov", content_size) do
+    moov = Box.parse(%Box.Moov{}, read_box(reader, content_size))
 
     tracks =
       moov.trak
@@ -272,8 +284,8 @@ defmodule ExMP4.Reader do
     }
   end
 
-  defp do_parse_metadata(reader, "moof", content_size, rest) do
-    moof = Box.parse(%Box.Moof{}, read_box(reader, content_size, rest))
+  defp do_parse_metadata(reader, "moof", content_size) do
+    moof = Box.parse(%Box.Moof{}, read_box(reader, content_size))
 
     Enum.reduce(moof.traf, reader.tracks, fn traf, tracks ->
       track_id = traf.tfhd.track_id
@@ -299,13 +311,13 @@ defmodule ExMP4.Reader do
     |> then(&%{reader | tracks: &1, duration: max_duration(reader, Map.values(&1))})
   end
 
-  defp do_parse_metadata(reader, box_name, content_size, rest) do
+  defp do_parse_metadata(reader, box_name, content_size) do
     reader =
       if box_name == "mdat",
         do: %{reader | progressive?: reader.progressive? || false},
         else: reader
 
-    skip(reader, content_size, rest)
+    skip(reader, content_size)
   end
 
   defp reverse_trafs(reader) do
@@ -316,15 +328,12 @@ defmodule ExMP4.Reader do
     end)
   end
 
-  defp read_box(reader, content_size, rest) do
-    amount_to_read = content_size - byte_size(rest)
-    box_data = reader.reader_mod.read(reader.reader_state, amount_to_read)
-    rest <> box_data
+  defp read_box(reader, content_size) do
+    reader.reader_mod.read(reader.reader_state, content_size)
   end
 
-  defp skip(reader, content_size, rest) do
-    amount_to_skip = content_size - byte_size(rest)
-    reader.reader_mod.seek(reader.reader_state, {:cur, amount_to_skip})
+  defp skip(reader, content_size) do
+    reader.reader_mod.seek(reader.reader_state, {:cur, content_size})
     reader
   end
 
