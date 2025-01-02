@@ -31,16 +31,15 @@ defmodule ExMP4.Box.Utils do
   end
 
   @spec try_parse_header(binary()) ::
-          {:ok,
-           {String.t(), header_size :: integer(), content_size :: integer(),
-            remaining :: binary()}}
+          {:ok, String.t(), content_size :: integer()}
+          | {:more, String.t()}
           | {:error, :not_enough_data}
-  def try_parse_header(<<1::32, box_type::binary-size(4), size::64, rest::binary>>) do
-    {:ok, {box_type, 16, size - 16, rest}}
+  def try_parse_header(<<1::32, box_type::binary-size(4)>>) do
+    {:more, box_type}
   end
 
-  def try_parse_header(<<size::32, box_type::binary-size(4), rest::binary>>) do
-    {:ok, {box_type, 8, size - 8, rest}}
+  def try_parse_header(<<size::32, box_type::binary-size(4)>>) do
+    {:ok, box_type, size - 8}
   end
 
   def try_parse_header(_data) do
