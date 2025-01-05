@@ -82,8 +82,7 @@ if Application.ensure_loaded(TableRex) do
       |> Enum.reduce(%{}, fn track, tracks ->
         Map.update(tracks, track.type, [track], &(&1 ++ [track]))
       end)
-      |> Enum.map(&track_info(reader, elem(&1, 0), elem(&1, 1)))
-      |> Enum.join()
+      |> Enum.map_join(&track_info(reader, elem(&1, 0), elem(&1, 1)))
     end
 
     @doc """
