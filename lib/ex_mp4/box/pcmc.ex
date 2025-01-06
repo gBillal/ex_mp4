@@ -20,7 +20,7 @@ defmodule ExMP4.Box.Pcmc do
     end
 
     def serialize(box) do
-      <<0::32, box.format_flags::8, box.pcm_sample_size::8>>
+      <<size(box)::32, "pcmC", 0::32, box.format_flags::8, box.pcm_sample_size::8>>
     end
   end
 end

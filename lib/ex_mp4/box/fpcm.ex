@@ -17,6 +17,7 @@ defmodule ExMP4.Box.Fpcm do
 
   defimpl ExMP4.Box do
     alias ExMP4.Box.Pcmc
+
     def size(box), do: ExMP4.header_size() + 28 + ExMP4.Box.size(box.pcmC)
 
     def parse(
