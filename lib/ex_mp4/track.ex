@@ -7,7 +7,7 @@ defmodule ExMP4.Track do
   alias ExMP4.{Helper, Sample}
 
   @type id :: non_neg_integer()
-  @type codecs :: :h264 | :h265 | :vp8 | :vp9 | :aac | :opus | :unknown
+  @type codecs :: :h264 | :h265 | :vp8 | :vp9 | :aac | :opus | :raw | :unknown
   @type media_types :: :video | :audio | :subtitle | :unknown
 
   @public_fields ~w(id type media media_tag width height sample_rate channels priv_data timescale duration sample_count)a
@@ -288,6 +288,19 @@ defmodule ExMP4.Track do
     }
   end
 
+  defp get_media(track, %{ipcm: ipcm, fpcm: fpcm}) when not is_nil(ipcm) or not is_nil(fpcm) do
+    {pcm, tag} = if is_nil(fpcm), do: {ipcm, :ipcm}, else: {fpcm, :fpcm}
+
+    %{
+      track
+      | media: :raw,
+        priv_data: pcm.pcmC,
+        channels: pcm.channel_count,
+        sample_rate: elem(pcm.sample_rate, 0),
+        media_tag: tag
+    }
+  end
+
   defp get_media(track, _stsd) do
     %{track | media: :unknown}
   end
@@ -420,6 +433,23 @@ defmodule ExMP4.Track do
         esds: track.priv_data
       }
     }
+  end
+
+  defp sample_description_table(%{media: :raw, media_tag: tag} = track) do
+    fields = %{
+      sample_size: track.priv_data.pcm_sample_size,
+      channel_count: track.channels,
+      sample_rate: {track.sample_rate, 0},
+      pcmC: track.priv_data
+    }
+
+    entry =
+      case tag do
+        :ipcm -> struct!(ExMP4.Box.Ipcm, fields)
+        :fpcm -> struct!(ExMP4.Box.Fpcm, fields)
+      end
+
+    Map.put(%ExMP4.Box.Stsd{}, tag, entry)
   end
 
   defp reverse_entries(nil), do: nil

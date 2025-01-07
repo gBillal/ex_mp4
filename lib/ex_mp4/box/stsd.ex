@@ -9,7 +9,7 @@ defmodule ExMP4.Box.Stsd do
   import ExMP4.Box.Utils, only: [parse_header: 1]
 
   alias ExMP4.Box
-  alias ExMP4.Box.{Avc, Hevc, Mp4a, VP08, VP09}
+  alias ExMP4.Box.{Avc, Fpcm, Hevc, Ipcm, Mp4a, VP08, VP09}
 
   @type t :: %__MODULE__{
           version: integer(),
@@ -20,7 +20,9 @@ defmodule ExMP4.Box.Stsd do
           hvc1: Hevc.t() | nil,
           hev1: Hevc.t() | nil,
           vp08: VP08.t() | nil,
-          vp09: VP09.t() | nil
+          vp09: VP09.t() | nil,
+          ipcm: Ipcm.t() | nil,
+          fpcm: Fpcm.t() | nil
         }
 
   defstruct version: 0,
@@ -31,13 +33,27 @@ defmodule ExMP4.Box.Stsd do
             hvc1: nil,
             hev1: nil,
             vp08: nil,
-            vp09: nil
+            vp09: nil,
+            ipcm: nil,
+            fpcm: nil
 
   defimpl ExMP4.Box do
+    @codecs %{
+      "avc1" => %Avc{},
+      "avc3" => %Avc{},
+      "mp4a" => %Mp4a{},
+      "hvc1" => %Hevc{},
+      "hev1" => %Hevc{},
+      "vp08" => %VP08{},
+      "vp09" => %VP09{},
+      "ipcm" => %Ipcm{},
+      "fpcm" => %Fpcm{}
+    }
+
     def size(box) do
       ExMP4.full_box_header_size() + 4 + Box.size(box.avc1) + Box.size(box.avc3) +
-        Box.size(box.mp4a) + +Box.size(box.hvc1) + Box.size(box.hev1) + Box.size(box.vp08) +
-        Box.size(box.vp09)
+        Box.size(box.mp4a) + Box.size(box.hvc1) + Box.size(box.hev1) + Box.size(box.vp08) +
+        Box.size(box.vp09) + Box.size(box.ipcm) + Box.size(box.fpcm)
     end
 
     def parse(box, <<version::8, flags::24, 1::32, rest::binary>>) do
@@ -54,45 +70,24 @@ defmodule ExMP4.Box.Stsd do
         Box.serialize(box.hvc1),
         Box.serialize(box.hev1),
         Box.serialize(box.vp08),
-        Box.serialize(box.vp09)
+        Box.serialize(box.vp09),
+        Box.serialize(box.ipcm),
+        Box.serialize(box.fpcm)
       ]
     end
 
     defp do_parse(box, <<>>), do: box
 
     defp do_parse(box, data) do
-      {box, rest} =
-        case parse_header(data) do
-          {"avc1", box_data, rest} ->
-            box = %{box | avc1: ExMP4.Box.parse(%Avc{}, box_data)}
-            {box, rest}
+      {box_name, box_data, rest} = parse_header(data)
 
-          {"avc3", box_data, rest} ->
-            box = %{box | avc1: ExMP4.Box.parse(%Avc{}, box_data)}
-            {box, rest}
+      box =
+        case Map.fetch(@codecs, box_name) do
+          {:ok, codec_struct} ->
+            Map.put(box, String.to_atom(box_name), Box.parse(codec_struct, box_data))
 
-          {"mp4a", box_data, rest} ->
-            box = %{box | mp4a: ExMP4.Box.parse(%Mp4a{}, box_data)}
-            {box, rest}
-
-          {"hvc1", box_data, rest} ->
-            box = %{box | hvc1: ExMP4.Box.parse(%Hevc{}, box_data)}
-            {box, rest}
-
-          {"hev1", box_data, rest} ->
-            box = %{box | hev1: ExMP4.Box.parse(%Hevc{}, box_data)}
-            {box, rest}
-
-          {"vp08", box_data, rest} ->
-            box = %{box | vp08: ExMP4.Box.parse(%VP08{}, box_data)}
-            {box, rest}
-
-          {"vp09", box_data, rest} ->
-            box = %{box | vp09: ExMP4.Box.parse(%VP09{}, box_data)}
-            {box, rest}
-
-          {_box_name, _box_data, rest} ->
-            {box, rest}
+          :error ->
+            box
         end
 
       do_parse(box, rest)
