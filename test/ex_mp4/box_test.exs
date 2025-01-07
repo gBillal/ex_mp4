@@ -33,6 +33,7 @@ defmodule ExMP4.BoxTest do
              pcmC: %Pcmc{format_flags: 0, pcm_sample_size: 24}
            } = box = ExMP4.Box.parse(%Ipcm{}, :binary.part(ipcm, 8, byte_size(ipcm) - 8))
 
+    assert ExMP4.Box.size(box) == 50
     assert ExMP4.Box.serialize(box) |> IO.iodata_to_binary() == ipcm
   end
 end

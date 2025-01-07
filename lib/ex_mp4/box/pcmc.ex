@@ -10,7 +10,7 @@ defmodule ExMP4.Box.Pcmc do
           pcm_sample_size: non_neg_integer()
         }
 
-  defstruct [:format_flags, :pcm_sample_size, version: 0, flags: 0]
+  defstruct [:pcm_sample_size, version: 0, flags: 0, format_flags: 0]
 
   defimpl ExMP4.Box, for: ExMP4.Box.Pcmc do
     def size(_box), do: ExMP4.full_box_header_size() + 2

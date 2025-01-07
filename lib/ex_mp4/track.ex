@@ -437,6 +437,7 @@ defmodule ExMP4.Track do
 
   defp sample_description_table(%{media: :raw, media_tag: tag} = track) do
     fields = %{
+      sample_size: track.priv_data.pcm_sample_size,
       channel_count: track.channels,
       sample_rate: {track.sample_rate, 0},
       pcmC: track.priv_data
