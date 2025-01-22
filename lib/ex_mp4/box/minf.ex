@@ -35,10 +35,10 @@ defmodule ExMP4.Box.Minf do
 
       [
         <<size(box)::32, "minf">>,
-        ExMP4.Box.serialize(box.dinf),
-        ExMP4.Box.serialize(box.stbl),
         vmhd_data,
-        smhd_data
+        smhd_data,
+        ExMP4.Box.serialize(box.dinf),
+        ExMP4.Box.serialize(box.stbl)
       ]
     end
 

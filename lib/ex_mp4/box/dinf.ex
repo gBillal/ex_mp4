@@ -14,7 +14,7 @@ defmodule ExMP4.Box.Dinf do
               data_entry: [
                 %{
                   version: 0,
-                  flags: 0
+                  flags: 1
                 }
               ]
             }
