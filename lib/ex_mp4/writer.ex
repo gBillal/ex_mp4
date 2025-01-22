@@ -214,7 +214,7 @@ defmodule ExMP4.Writer do
 
     moov = %Moov{
       mvhd: %Box.Mvhd{
-        duration: Enum.map(trak, & &1.tkhd.duration) |> Enum.max(),
+        duration: Enum.map(trak, & &1.tkhd.duration) |> Enum.max(fn -> 0 end),
         timescale: @movie_timescale,
         next_track_id: length(trak) + 1,
         creation_time: creation_time,
