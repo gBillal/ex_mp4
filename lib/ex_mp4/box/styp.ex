@@ -33,7 +33,7 @@ defmodule ExMP4.Box.Styp do
 
     def serialize(box) do
       [
-        <<size(box)::32, "ftyp", box.major_brand::binary, box.minor_version::32>>,
+        <<size(box)::32, "styp", box.major_brand::binary, box.minor_version::32>>,
         box.compatible_brands
       ]
     end
