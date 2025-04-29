@@ -129,7 +129,7 @@ defmodule ExMP4.Reader do
   Get all the available tracks.
   """
   @spec tracks(t()) :: [Track.t()]
-  def tracks(reader), do: Map.values(reader.tracks)
+  def tracks(reader), do: Map.values(reader.tracks) |> Enum.sort_by(& &1.id)
 
   @doc """
   Get a track by id or type.
