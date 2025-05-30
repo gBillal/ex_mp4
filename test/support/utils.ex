@@ -31,9 +31,9 @@ defmodule ExMP4.Support.Utils do
                  channels: 2
                )
 
-  @spec video_track() :: Track.t()
-  def video_track(), do: @video_track
+  @spec video_track :: Track.t()
+  def video_track, do: @video_track
 
-  @spec audio_track() :: Track.t()
-  def audio_track(), do: @audio_track
+  @spec audio_track :: Track.t()
+  def audio_track, do: @audio_track
 end

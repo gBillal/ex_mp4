@@ -97,7 +97,7 @@ defmodule ExMP4.WriterTest do
     assert <<_ftyp::binary-size(32), _moov_size::binary-size(4), "moov", _rest::binary>> = data
   end
 
-  defp video_samples() do
+  defp video_samples do
     [
       {0, 2000, 1000, true},
       {1000, 4000, 1000, false},
@@ -117,7 +117,7 @@ defmodule ExMP4.WriterTest do
     end)
   end
 
-  defp audio_samples() do
+  defp audio_samples do
     [
       {0, 0, 24_000},
       {24_000, 24_000, 24_000},

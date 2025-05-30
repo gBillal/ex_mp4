@@ -12,6 +12,7 @@ defmodule ExMP4.FWriter do
           writer_state: term(),
           tracks: %{integer() => Track.t()},
           current_fragments: %{integer() => {Box.Traf.t(), [iodata()]}},
+          current_segments: %{integer() => Box.Sidx.t()},
           sequence_number: integer(),
           base_data_offset: integer(),
           ftyp_box_size: integer(),
@@ -29,20 +30,19 @@ defmodule ExMP4.FWriter do
           creation_time: DateTime.t(),
           modification_time: DateTime.t(),
           duration: integer() | boolean(),
-          moof_base_offset: boolean(),
-          sidx: boolean()
+          moof_base_offset: boolean()
         ]
 
   defstruct writer_mod: nil,
             writer_state: nil,
             tracks: %{},
             current_fragments: %{},
+            current_segments: %{},
             sequence_number: 0,
             base_data_offset: 0,
             ftyp_box_size: 0,
             movie_box: nil,
-            moof_base_offset: false,
-            sidx: false
+            moof_base_offset: false
 
   @doc """
   Create a new mp4 writer that writes to filesystem.
@@ -65,7 +65,6 @@ defmodule ExMP4.FWriter do
       If an integer, it's the total duration in the `movie` timescale and it'll be set in the `mehd` box.
     * `moof_base_offset` - if `true`, it indicates that the `base‐data‐offset` for the track fragments
       is the position of the first byte of the enclosing Movie Fragment Box. Defaults to: `false`.
-    * `sidx` - whether to add segment boxes. Defaults to: `false`
 
   The last argument is an optional module implementing `ExMP4.FragDataWriter`.
   """
@@ -98,9 +97,42 @@ defmodule ExMP4.FWriter do
   end
 
   @doc """
+  Creates a new media segment.
+
+  Calling this function is optional. If not called, no Segment Index Box (`sidx`) will be  added.
+
+  > ### Segments and Fragments {: .info}
+  >
+  > Current implementation restricts each segment to contain exactly one fragment.
+  > This is why there is no separate `flush_segment` function - the segment is automatically `closed`
+  > when the single fragment is completed.
+  """
+  @spec create_segment(t()) :: t()
+  def create_segment(%{current_segments: segments}) when map_size(segments) != 0 do
+    raise "Hierarchical segments are not supported"
+  end
+
+  def create_segment(%{tracks: tracks} = writer) do
+    segments =
+      Map.new(tracks, fn {track_id, track} ->
+        sidx = %Box.Sidx{
+          reference_id: track_id,
+          timescale: track.timescale,
+          earliest_presentation_time: track.duration,
+          first_offset: 0,
+          entries: []
+        }
+
+        {track_id, sidx}
+      end)
+
+    %{writer | current_segments: segments}
+  end
+
+  @doc """
   Create a new empty fragment.
 
-  After adding samples, the fragment should be flushed, with `flush_fragment/1`.
+  After adding samples, the fragment should be finalized, with `flush_fragment/1`.
   """
   @spec create_fragment(t()) :: t()
   def create_fragment(%{tracks: tracks} = writer) do
@@ -138,48 +170,18 @@ defmodule ExMP4.FWriter do
   end
 
   @doc """
-  Flush the current fragment.
+  Finalizes the current fragment and segment (if any).
   """
   @spec flush_fragment(t()) :: t()
   def flush_fragment(%{tracks: tracks, moof_base_offset: moof_base_offset} = writer) do
-    moof = %Box.Moof{mfhd: %Box.Mfhd{sequence_number: writer.sequence_number}}
-    mdat = %Box.Mdat{content: []}
-
-    {moof, mdat, segments} =
-      Enum.reduce(writer.current_fragments, {moof, mdat, []}, fn {track_id, {traf, data}},
-                                                                 {moof, mdat, sidx} ->
-        traf = Box.Traf.finalize(traf, moof_base_offset)
-        data = Enum.reverse(data)
-
-        moof = %Box.Moof{moof | traf: [traf | moof.traf]}
-        mdat = %Box.Mdat{mdat | content: [data | mdat.content]}
-        sidx = if writer.sidx, do: [build_segment_box(tracks[track_id], traf) | sidx], else: sidx
-
-        {moof, mdat, sidx}
-      end)
-
-    moof = %Box.Moof{moof | traf: Enum.reverse(moof.traf)}
-    mdat = %Box.Mdat{mdat | content: Enum.reverse(mdat.content)}
+    {moof, mdat} = build_moof_and_mdat(writer)
+    {segments, segments_size} = finalize_segments(writer.current_segments, moof, mdat)
 
     referenced_size = Box.size(moof) + Box.size(mdat)
 
-    {sidx, segments_size, _offset} =
-      Enum.reduce(segments, {[], 0, 0}, fn %Box.Sidx{entries: [entry]} = segment,
-                                           {acc, segments_size, offset} ->
-        sidx = %Box.Sidx{
-          segment
-          | first_offset: offset,
-            entries: [%{entry | referenced_size: referenced_size}]
-        }
-
-        sidx_size = Box.size(sidx)
-        {[sidx | acc], segments_size + sidx_size, offset + sidx_size}
-      end)
-
-    base_data_offset = writer.base_data_offset + Box.size(moof) + @mdat_header_size
-
     base_data_offset =
-      if moof_base_offset, do: base_data_offset, else: base_data_offset + segments_size
+      writer.base_data_offset + Box.size(moof) + @mdat_header_size +
+        if moof_base_offset, do: 0, else: segments_size
 
     moof = Box.Moof.update_base_offsets(moof, base_data_offset, moof_base_offset)
 
@@ -193,7 +195,7 @@ defmodule ExMP4.FWriter do
       end)
 
     writer.writer_mod.write_fragment(writer.writer_state, [
-      Box.serialize(sidx),
+      Box.serialize(segments),
       Box.serialize(moof),
       Box.serialize(mdat)
     ])
@@ -207,6 +209,7 @@ defmodule ExMP4.FWriter do
       writer
       | tracks: tracks,
         current_fragments: %{},
+        current_segments: %{},
         base_data_offset: base_data_offset
     }
   end
@@ -235,8 +238,7 @@ defmodule ExMP4.FWriter do
           writer_mod: writer_mod,
           writer_state: writer_state,
           tracks: tracks,
-          moof_base_offset: opts[:moof_base_offset],
-          sidx: opts[:sidx]
+          moof_base_offset: opts[:moof_base_offset]
         }
 
       {:ok, write_init_header(writer, opts)}
@@ -323,6 +325,53 @@ defmodule ExMP4.FWriter do
     }
   end
 
+  defp build_moof_and_mdat(writer) do
+    moof = %Box.Moof{mfhd: %Box.Mfhd{sequence_number: writer.sequence_number}}
+    mdat = %Box.Mdat{content: []}
+
+    {moof, mdat} =
+      Enum.reduce(writer.current_fragments, {moof, mdat}, fn {_track_id, {traf, data}},
+                                                             {moof, mdat} ->
+        traf = Box.Traf.finalize(traf, writer.moof_base_offset)
+        data = Enum.reverse(data)
+
+        moof = %Box.Moof{moof | traf: [traf | moof.traf]}
+        mdat = %Box.Mdat{mdat | content: [data | mdat.content]}
+
+        {moof, mdat}
+      end)
+
+    moof = %Box.Moof{moof | traf: Enum.reverse(moof.traf)}
+    mdat = %Box.Mdat{mdat | content: Enum.reverse(mdat.content)}
+
+    {moof, mdat}
+  end
+
+  defp finalize_segments(segments, _moof, _mdat) when map_size(segments) == 0, do: {[], 0}
+
+  defp finalize_segments(segments, moof, mdat) do
+    Enum.map_reduce(moof.traf, 0, fn traf, acc ->
+      segment = segments[traf.tfhd.track_id]
+
+      segment = %Box.Sidx{
+        segment
+        | first_offset: acc,
+          entries: [
+            %{
+              reference_type: 0,
+              referenced_size: Box.size(moof) + Box.size(mdat),
+              subsegment_duration: Box.Traf.duration(traf),
+              starts_with_sap: 1,
+              sap_type: 0,
+              sap_delta_time: 0
+            }
+          ]
+      }
+
+      {segment, acc + Box.size(segment)}
+    end)
+  end
+
   defp update_fragment_duration(%{movie_box: nil}), do: :ok
 
   defp update_fragment_duration(%{movie_box: moov_box} = writer) do
@@ -348,23 +397,4 @@ defmodule ExMP4.FWriter do
 
   defp brands(true), do: {"iso5", ["iso6", "mp41"]}
   defp brands(_moof_base_offset), do: {"mp42", ["mp42", "mp41", "isom", "avc1"]}
-
-  defp build_segment_box(track, traf) do
-    %Box.Sidx{
-      reference_id: track.id,
-      timescale: track.timescale,
-      earliest_presentation_time: track.duration,
-      first_offset: 0,
-      entries: [
-        %{
-          reference_type: 0,
-          referenced_size: 0,
-          subsegment_duration: Box.Traf.duration(traf),
-          starts_with_sap: 1,
-          sap_type: 0,
-          sap_delta_time: 0
-        }
-      ]
-    }
-  end
 end
