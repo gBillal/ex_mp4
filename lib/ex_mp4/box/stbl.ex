@@ -9,9 +9,8 @@ defmodule ExMP4.Box.Stbl do
 
   import ExMP4.Box.Utils, only: [parse_header: 1]
 
-  alias ExMP4.Box.Stbl
   alias ExMP4.Box
-  alias ExMP4.Box.{Co64, Ctts, Stco, Stsc, Stsd, Stss, Stsz, Stz2, Stts}
+  alias ExMP4.Box.{Co64, Ctts, Stbl, Stco, Stsc, Stsd, Stss, Stsz, Stts, Stz2}
 
   @type t :: %__MODULE__{
           stsd: Stsd.t(),
@@ -166,6 +165,18 @@ defmodule ExMP4.Box.Stbl do
   end
 
   defimpl ExMP4.Box do
+    @child_boxes %{
+      "stsd" => %Stsd{},
+      "stts" => %Stts{},
+      "ctts" => %Ctts{},
+      "stss" => %Stss{},
+      "stsz" => %Stsz{},
+      "stz2" => %Stz2{},
+      "stsc" => %Stsc{},
+      "stco" => %Stco{},
+      "co64" => %Co64{}
+    }
+
     def size(box) do
       ExMP4.header_size() + Box.size(box.stsd) + Box.size(box.stts) +
         Box.size(box.ctts) + Box.size(box.stsc) + Box.size(box.stss) + Box.size(box.stsz) +
@@ -192,46 +203,15 @@ defmodule ExMP4.Box.Stbl do
     defp do_parse(box, <<>>), do: box
 
     defp do_parse(box, data) do
-      {box, rest} =
-        case parse_header(data) do
-          {"stsd", box_data, rest} ->
-            box = %{box | stsd: ExMP4.Box.parse(%Stsd{}, box_data)}
-            {box, rest}
+      {box_name, box_data, rest} = parse_header(data)
 
-          {"stts", box_data, rest} ->
-            box = %{box | stts: ExMP4.Box.parse(%Stts{}, box_data)}
-            {box, rest}
+      box =
+        case Map.fetch(@child_boxes, box_name) do
+          {:ok, box_struct} ->
+            Map.put(box, String.to_atom(box_name), Box.parse(box_struct, box_data))
 
-          {"ctts", box_data, rest} ->
-            box = %{box | ctts: ExMP4.Box.parse(%Ctts{}, box_data)}
-            {box, rest}
-
-          {"stss", box_data, rest} ->
-            box = %{box | stss: ExMP4.Box.parse(%Stss{}, box_data)}
-            {box, rest}
-
-          {"stsz", box_data, rest} ->
-            box = %{box | stsz: ExMP4.Box.parse(%Stsz{}, box_data)}
-            {box, rest}
-
-          {"stz2", box_data, rest} ->
-            box = %{box | stz2: ExMP4.Box.parse(%Stz2{}, box_data)}
-            {box, rest}
-
-          {"stsc", box_data, rest} ->
-            box = %{box | stsc: ExMP4.Box.parse(%Stsc{}, box_data)}
-            {box, rest}
-
-          {"stco", box_data, rest} ->
-            box = %{box | stco: ExMP4.Box.parse(%Stco{}, box_data)}
-            {box, rest}
-
-          {"co64", box_data, rest} ->
-            box = %{box | co64: ExMP4.Box.parse(%Co64{}, box_data)}
-            {box, rest}
-
-          {_box_name, _box_data, rest} ->
-            {box, rest}
+          :error ->
+            box
         end
 
       do_parse(box, rest)

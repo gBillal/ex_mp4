@@ -355,7 +355,7 @@ defmodule ExMP4.Reader do
 
     acc =
       Enum.map(acc, fn {track, element, fun} ->
-        case element == selected_element do
+        case element.track_id == selected_element.track_id do
           true -> {track, nil, fun}
           false -> {track, element, fun}
         end

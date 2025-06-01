@@ -76,7 +76,7 @@ defmodule ExMP4.Track do
   ]
 
   @doc false
-  def updatable_fields(),
+  def updatable_fields,
     do: ~w(type media media_tag width height sample_rate channels priv_data)a
 
   @spec from_trak(Trak.t()) :: t()

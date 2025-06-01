@@ -7,8 +7,8 @@ defmodule ExMP4.Box.Utils do
 
   @name_size 4
 
-  @spec base_date() :: DateTime.t()
-  def base_date(), do: @base_date
+  @spec base_date :: DateTime.t()
+  def base_date, do: @base_date
 
   @spec to_date(integer()) :: DateTime.t()
   def to_date(diff), do: DateTime.add(@base_date, diff)

@@ -284,7 +284,7 @@ defmodule ExMP4.Writer do
 
   defp close(%__MODULE__{writer_mod: writer, writer_state: state}), do: writer.close(state)
 
-  defp new_sample_table() do
+  defp new_sample_table do
     %Box.Stbl{
       ctts: %Box.Ctts{},
       stss: %Box.Stss{},
