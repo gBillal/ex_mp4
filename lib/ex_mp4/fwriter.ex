@@ -194,11 +194,8 @@ defmodule ExMP4.FWriter do
         )
       end)
 
-    writer.writer_mod.write_fragment(writer.writer_state, [
-      Box.serialize(segments),
-      Box.serialize(moof),
-      Box.serialize(mdat)
-    ])
+    writer_state =
+      writer.writer_mod.write_segment(writer.writer_state, List.flatten(segments, [moof, mdat]))
 
     base_data_offset =
       if moof_base_offset,
@@ -208,6 +205,7 @@ defmodule ExMP4.FWriter do
     %{
       writer
       | tracks: tracks,
+        writer_state: writer_state,
         current_fragments: %{},
         current_segments: %{},
         base_data_offset: base_data_offset
@@ -219,7 +217,7 @@ defmodule ExMP4.FWriter do
   """
   @spec close(t()) :: :ok
   def close(writer) do
-    update_fragment_duration(writer)
+    writer = update_fragment_duration(writer)
     writer.writer_mod.close(writer.writer_state)
   end
 
@@ -291,10 +289,7 @@ defmodule ExMP4.FWriter do
       }
     }
 
-    writer.writer_mod.write_init_header(writer.writer_state, [
-      Box.serialize(ftyp_box),
-      Box.serialize(movie_box)
-    ])
+    writer_state = writer.writer_mod.write_init_header(writer.writer_state, [ftyp_box, movie_box])
 
     base_data_offset =
       case writer.moof_base_offset do
@@ -304,7 +299,8 @@ defmodule ExMP4.FWriter do
 
     %{
       writer
-      | base_data_offset: base_data_offset,
+      | writer_state: writer_state,
+        base_data_offset: base_data_offset,
         ftyp_box_size: Box.size(ftyp_box),
         movie_box: if(fragment_duration == 0, do: movie_box)
     }
@@ -370,9 +366,10 @@ defmodule ExMP4.FWriter do
 
       {segment, acc + Box.size(segment)}
     end)
+    |> then(fn {segments, size} -> {Enum.reverse(segments), size} end)
   end
 
-  defp update_fragment_duration(%{movie_box: nil}), do: :ok
+  defp update_fragment_duration(%{movie_box: nil} = writer), do: writer
 
   defp update_fragment_duration(%{movie_box: moov_box} = writer) do
     fragment_duration =
@@ -384,11 +381,14 @@ defmodule ExMP4.FWriter do
     mvex = moov_box.mvex
     mvex = %{mvex | mehd: %{mvex.mehd | fragment_duration: fragment_duration}}
 
-    writer.writer_mod.write(
-      writer.writer_state,
-      Box.serialize(%{moov_box | mvex: mvex}),
-      {:bof, writer.ftyp_box_size}
-    )
+    writer_state =
+      writer.writer_mod.write(
+        writer.writer_state,
+        Box.serialize(%{moov_box | mvex: mvex}),
+        {:bof, writer.ftyp_box_size}
+      )
+
+    %{writer | writer_state: writer_state}
   end
 
   defp fragment_duration(false), do: nil
