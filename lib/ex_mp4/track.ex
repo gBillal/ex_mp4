@@ -69,7 +69,6 @@ defmodule ExMP4.Track do
     timescale: 1000,
     duration: 0,
     sample_count: 0,
-    _iter_index: 1,
     _iter_duration: 0,
     _chunk_id: 1,
     _stsc_entry: %{first_chunk: 1, samples_per_chunk: 0, sample_description_index: 1}
@@ -463,26 +462,16 @@ defmodule ExMP4.Track do
     def reduce(_track, {:halt, acc}, _fun), do: {:halted, acc}
 
     # progressive file
-    def reduce(%{trex: nil} = track, {:cont, acc}, _fun)
-        when track._iter_index > track.sample_count do
-      {:done, acc}
-    end
-
     def reduce(%{trex: nil} = track, {:cont, acc}, fun) do
-      %{_iter_index: index, _iter_duration: duration} = track
+      case Stbl.next_sample(track.sample_table) do
+        {nil, _stbl} ->
+          {:done, acc}
 
-      {stbl, sample_metadata} = Stbl.next_sample(track.sample_table, index, duration)
-
-      sample_metadata = %{sample_metadata | track_id: track.id}
-
-      track = %{
-        track
-        | sample_table: stbl,
-          _iter_index: index + 1,
-          _iter_duration: duration + sample_metadata.duration
-      }
-
-      reduce(track, fun.(sample_metadata, acc), fun)
+        {sample_metadata, stbl} ->
+          sample_metadata = %{sample_metadata | track_id: track.id}
+          track = %{track | sample_table: stbl}
+          reduce(track, fun.(sample_metadata, acc), fun)
+      end
     end
 
     # fragmented file
@@ -505,8 +494,8 @@ defmodule ExMP4.Track do
       reduce(%{track | _iter_duration: duration}, fun.(sample_metadata, acc), fun)
     end
 
-    def count(%{trex: trex}) when not is_nil(trex), do: {:error, __MODULE__}
-    def count(%{sample_count: count}), do: {:ok, count}
+    def count(%{sample_count: count, trex: nil}), do: {:ok, count}
+    def count(%{trafs: trafs}), do: {:ok, Enum.reduce(trafs, 0, &(Traf.sample_count(&1) + &2))}
 
     def member?(_enumerable, _element), do: {:error, __MODULE__}
 

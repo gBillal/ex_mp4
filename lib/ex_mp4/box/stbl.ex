@@ -32,30 +32,34 @@ defmodule ExMP4.Box.Stbl do
             stz2: nil,
             stsc: %Stsc{},
             stco: nil,
-            co64: nil
+            co64: nil,
+            # private fields
+            _duration: 0,
+            _idx: 1
 
   @doc """
-  Get the next sample from the sample table.
+  Gets the next sample metadata from the sample table.
 
-  The `sample_index` is the index of the next sample to retrieve (must start from 1).
+  The return type is a tuple with the first element being the sample metadata and
+  the second element is the sample table after removing the extracted sample.
 
-  The `total_duration` is the total duration of all the retrieved samples.
-
-  The return type is a tuple with the first element being the
-  sample table after removing the extracted sample and the second element
-  is the extracted sample.
+  If there's no more samples, the first element will be `nil`.
   """
-  @spec next_sample(t(), integer(), integer()) :: {t(), ExMP4.SampleMetadata.t()}
-  def next_sample(stbl, sample_index, total_duration) do
-    {stbl, %ExMP4.SampleMetadata{}}
-    |> sample_dts(total_duration)
-    |> sample_pts()
-    |> sync_sample(sample_index)
-    |> sample_size()
-    |> sample_offset(sample_index)
+  @spec next_sample(t()) :: {ExMP4.SampleMetadata.t() | nil, t()}
+  def next_sample(%{stts: %{entries: []}} = stbl) do
+    {nil, stbl}
   end
 
-  defp sample_dts({%{stts: stts} = stbl, element}, total_duration) do
+  def next_sample(stbl) do
+    {%ExMP4.SampleMetadata{}, stbl}
+    |> sample_dts()
+    |> sample_pts()
+    |> sync_sample()
+    |> sample_size()
+    |> sample_offset()
+  end
+
+  defp sample_dts({element, %{stts: stts} = stbl}) do
     {delta, entries} =
       case stts.entries do
         [%{sample_count: 1, sample_delta: delta} | entries] ->
@@ -65,21 +69,21 @@ defmodule ExMP4.Box.Stbl do
           {delta, [%{entry | sample_count: count - 1} | entries]}
       end
 
-    element = %{element | dts: total_duration, duration: delta}
+    element = %{element | dts: stbl._duration, duration: delta}
     stts = %Stts{stts | entries: entries}
 
-    {%Stbl{stbl | stts: stts}, element}
+    {element, %Stbl{stbl | stts: stts, _duration: stbl._duration + delta}}
   end
 
-  defp sample_pts({%{ctts: nil} = stbl, element}) do
-    {stbl, %{element | pts: element.dts}}
+  defp sample_pts({element, %{ctts: nil} = stbl}) do
+    {%{element | pts: element.dts}, stbl}
   end
 
-  defp sample_pts({%{ctts: %{entries: []}} = stbl, element}) do
-    {stbl, %{element | pts: element.dts}}
+  defp sample_pts({element, %{ctts: %{entries: []}} = stbl}) do
+    {%{element | pts: element.dts}, stbl}
   end
 
-  defp sample_pts({%{ctts: ctts} = stbl, element}) do
+  defp sample_pts({element, %{ctts: ctts} = stbl}) do
     {offset, entries} =
       case ctts.entries do
         [%{sample_count: 1, sample_offset: offset} | entries] ->
@@ -90,12 +94,12 @@ defmodule ExMP4.Box.Stbl do
       end
 
     ctts = %Ctts{ctts | entries: entries}
-    {%Stbl{stbl | ctts: ctts}, %{element | pts: element.dts + offset}}
+    {%{element | pts: element.dts + offset}, %Stbl{stbl | ctts: ctts}}
   end
 
-  defp sync_sample({%{stss: nil} = stbl, element}, _index), do: {stbl, %{element | sync?: true}}
+  defp sync_sample({element, %{stss: nil} = stbl}), do: {%{element | sync?: true}, stbl}
 
-  defp sync_sample({%{stss: stss} = stbl, element}, sample_index) do
+  defp sync_sample({element, %{stss: stss, _idx: sample_index} = stbl}) do
     {sync?, entries} =
       case stss.entries do
         [] -> {true, []}
@@ -105,26 +109,26 @@ defmodule ExMP4.Box.Stbl do
       end
 
     stss = %Stss{stss | entries: entries}
-    {%Stbl{stbl | stss: stss}, %{element | sync?: sync?}}
+    {%{element | sync?: sync?}, %Stbl{stbl | stss: stss}}
   end
 
-  defp sample_size({%{stsz: stsz} = stbl, element}) when not is_nil(stsz) do
+  defp sample_size({element, %{stsz: stsz} = stbl}) when not is_nil(stsz) do
     if stsz.sample_size != 0 do
-      {stbl, %{element | size: stsz.sample_size}}
+      {%{element | size: stsz.sample_size}, stbl}
     else
       [sample_size | entries] = stsz.entries
       stsz = %Stsz{stsz | entries: entries}
-      {%Stbl{stbl | stsz: stsz}, %{element | size: sample_size}}
+      {%{element | size: sample_size}, %Stbl{stbl | stsz: stsz}}
     end
   end
 
-  defp sample_size({%{stz2: stz2} = stbl, element}) do
+  defp sample_size({element, %{stz2: stz2} = stbl}) do
     [sample_size | entries] = stz2.entries
     stz2 = %Stz2{stz2 | entries: entries}
-    {%Stbl{stbl | stz2: stz2}, %{element | size: sample_size}}
+    {%{element | size: sample_size}, %Stbl{stbl | stz2: stz2}}
   end
 
-  defp sample_offset({%{stco: stco, co64: co64, stsc: stsc} = stbl, element}, sample_index) do
+  defp sample_offset({element, %{stco: stco, co64: co64, stsc: stsc, _idx: sample_index} = stbl}) do
     [chunk_offset | chunk_entries] = Map.get(stco || co64, :entries)
     [stsc_entry | stsc_entries] = stsc.entries
 
@@ -148,10 +152,10 @@ defmodule ExMP4.Box.Stbl do
 
     stbl =
       if is_nil(stbl.stco),
-        do: %Stbl{stsc: stsc, co64: stco},
+        do: %Stbl{stbl | stsc: stsc, co64: stco},
         else: %Stbl{stbl | stsc: stsc, stco: stco}
 
-    {stbl, %{element | offset: chunk_offset}}
+    {%{element | offset: chunk_offset}, %{stbl | _idx: sample_index + 1}}
   end
 
   defp maybe_remove_stsc_entry(stsc, stsc_entries) do
