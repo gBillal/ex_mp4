@@ -33,6 +33,8 @@ defmodule ExMP4.FWriter do
           moof_base_offset: boolean()
         ]
 
+  @type writer_options :: any()
+
   defstruct writer_mod: nil,
             writer_state: nil,
             tracks: %{},
@@ -45,7 +47,7 @@ defmodule ExMP4.FWriter do
             moof_base_offset: false
 
   @doc """
-  Create a new mp4 writer that writes to filesystem.
+  Create a new fragmented mp4 writer.
 
   The tracks are assigned an id starting from 1.
 
@@ -68,17 +70,18 @@ defmodule ExMP4.FWriter do
 
   The last argument is an optional module implementing `ExMP4.FragDataWriter`.
   """
-  @spec new(Path.t(), [ExMP4.Track.t()], new_opts(), module()) :: {:ok, t()} | {:error, term()}
-  def new(filename, tracks, opts \\ [], module \\ ExMP4.FragDataWriter.File) do
-    do_new_writer(filename, module, tracks, opts)
+  @spec new(writer_options(), [ExMP4.Track.t()], new_opts(), module()) ::
+          {:ok, t()} | {:error, term()}
+  def new(writer_opts, tracks, opts \\ [], module \\ ExMP4.FragDataWriter.File) do
+    do_new_writer(writer_opts, module, tracks, opts)
   end
 
   @doc """
   The same as `new/2`, but raises if it fails.
   """
-  @spec new!(Path.t(), [ExMP4.Track.t()], new_opts(), module()) :: t()
-  def new!(filepath, tracks, opts \\ [], module \\ ExMP4.FragDataWriter.File) do
-    case new(filepath, tracks, opts, module) do
+  @spec new!(writer_options(), [ExMP4.Track.t()], new_opts(), module()) :: t()
+  def new!(writer_opts, tracks, opts \\ [], module \\ ExMP4.FragDataWriter.File) do
+    case new(writer_opts, tracks, opts, module) do
       {:ok, writer} -> writer
       {:error, reason} -> raise "cannot open writer: #{inspect(reason)}"
     end

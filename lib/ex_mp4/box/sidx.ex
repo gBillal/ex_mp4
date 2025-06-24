@@ -32,6 +32,33 @@ defmodule ExMP4.Box.Sidx do
             first_offset: 0,
             entries: []
 
+  @doc """
+  Gets the total duration of the segment.
+
+  If `unit` is provided, it will convert the duration to that unit.
+  """
+  @spec duration(t(), atom() | nil) :: integer()
+  def duration(%__MODULE__{entries: entries, timescale: timescale}, unit \\ nil) do
+    duration = Enum.reduce(entries, 0, &(&2 + &1.subsegment_duration))
+    ExMP4.Helper.timescalify(duration, timescale, unit || timescale, :exact)
+  end
+
+  @doc """
+  Gets the total size of the segment.
+  """
+  @spec size(t()) :: integer()
+  def size(%__MODULE__{entries: entries}) do
+    Enum.reduce(entries, 0, &(&1.referenced_size + &2))
+  end
+
+  @doc """
+  Calculates the bit rate of the segment.
+  """
+  @spec bitrate(t()) :: float()
+  def bitrate(segment) do
+    round(size(segment) * 8 / duration(segment, :second))
+  end
+
   defimpl ExMP4.Box do
     def size(box) do
       ExMP4.full_box_header_size() + 12 + length(box.entries) * 12 + (box.version + 1) * 8

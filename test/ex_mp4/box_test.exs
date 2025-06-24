@@ -73,6 +73,11 @@ defmodule ExMP4.BoxTest do
     assert ExMP4.Box.size(sidx) == 56
     assert ExMP4.Box.serialize(sidx) |> IO.iodata_to_binary() == expected
     assert ExMP4.Box.parse(%ExMP4.Box.Sidx{}, :binary.part(expected, 8, 48)) == sidx
+
+    assert ExMP4.Box.Sidx.duration(sidx) == 80_000
+    assert ExMP4.Box.Sidx.duration(sidx, :second) == 5.0
+    assert ExMP4.Box.Sidx.size(sidx) == 592
+    assert ExMP4.Box.Sidx.bit_rate(sidx) == 947
   end
 
   test "serialize and parse styp" do
