@@ -52,9 +52,9 @@ defmodule ExMP4.Box.Sidx do
   end
 
   @doc """
-  Calculates the bit rate of the segment.
+  Calculates the bitrate (bps) of the segment.
   """
-  @spec bitrate(t()) :: float()
+  @spec bitrate(t()) :: integer()
   def bitrate(segment) do
     round(size(segment) * 8 / duration(segment, :second))
   end
