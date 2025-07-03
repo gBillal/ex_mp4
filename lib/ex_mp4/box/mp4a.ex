@@ -1,26 +1,29 @@
 defmodule ExMP4.Box.Mp4a do
   @moduledoc """
-  A module representing an `mp4a` boxe.
+  A module representing an `mp4a` box.
   """
 
   import ExMP4.Box.Utils, only: [parse_header: 1]
+
+  alias ExMP4.Box.Esds
 
   @type t :: %__MODULE__{
           data_reference_index: integer(),
           channel_count: integer(),
           sample_size: integer(),
           sample_rate: {integer(), integer()},
-          esds: binary()
+          esds: Esds.t() | nil
         }
 
   defstruct data_reference_index: 0,
             channel_count: 2,
             sample_size: 16,
             sample_rate: {0, 0},
-            esds: <<>>
+            esds: nil
 
   defimpl ExMP4.Box do
-    def size(box), do: ExMP4.header_size() + 28 + byte_size(box.esds) + 8
+    alias ExMP4.Box
+    def size(box), do: ExMP4.header_size() + 28 + Box.size(box.esds)
 
     def parse(
           box,
@@ -39,13 +42,12 @@ defmodule ExMP4.Box.Mp4a do
 
     def serialize(box) do
       {rate_hi, rate_lo} = box.sample_rate
-      esds = <<byte_size(box.esds) + 8::32, "esds", box.esds::binary>>
 
       data =
         <<size(box)::32, "mp4a"::binary, 0::48, box.data_reference_index::16, 0::64,
           box.channel_count::16, box.sample_size::16, 0::32, rate_hi::16, rate_lo::16>>
 
-      [data, esds]
+      [data, Box.serialize(box.esds)]
     end
 
     defp do_parse(box, <<>>), do: box
@@ -54,7 +56,7 @@ defmodule ExMP4.Box.Mp4a do
       {box, rest} =
         case parse_header(data) do
           {"esds", box_data, rest} ->
-            box = %{box | esds: box_data}
+            box = %{box | esds: Box.parse(%Esds{}, box_data)}
             {box, rest}
 
           {_box_name, _box_data, rest} ->
