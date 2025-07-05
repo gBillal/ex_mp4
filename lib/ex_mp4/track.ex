@@ -283,7 +283,7 @@ defmodule ExMP4.Track do
         priv_data: mp4a.esds,
         channels: mp4a.channel_count,
         sample_rate: elem(mp4a.sample_rate, 0),
-        media_tag: :esds
+        media_tag: :mp4a
     }
   end
 
