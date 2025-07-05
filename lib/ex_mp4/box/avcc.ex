@@ -6,8 +6,8 @@ defmodule ExMP4.Box.Avcc do
   @type new_opts :: [nalu_length_size: integer()]
 
   @type t() :: %__MODULE__{
-          spss: [binary()],
-          ppss: [binary()],
+          sps: [binary()],
+          pps: [binary()],
           avc_profile_indication: non_neg_integer(),
           profile_compatibility: non_neg_integer(),
           avc_level: non_neg_integer(),
@@ -19,8 +19,8 @@ defmodule ExMP4.Box.Avcc do
     :avc_level,
     :profile_compatibility,
     nalu_length_size: 4,
-    spss: [],
-    ppss: []
+    sps: [],
+    pps: []
   ]
 
   @doc """
@@ -28,12 +28,12 @@ defmodule ExMP4.Box.Avcc do
   """
   @spec new([binary()], [binary()]) :: t()
   @spec new([binary()], [binary()], new_opts()) :: t()
-  def new(spss, ppss, opts \\ []) do
-    <<_idc_and_type, profile, compatibility, level, _rest::binary>> = List.last(spss)
+  def new(sps, pps, opts \\ []) do
+    <<_idc_and_type, profile, compatibility, level, _rest::binary>> = List.last(sps)
 
     %__MODULE__{
-      spss: spss,
-      ppss: ppss,
+      sps: sps,
+      pps: pps,
       avc_profile_indication: profile,
       avc_level: level,
       profile_compatibility: compatibility,
@@ -43,8 +43,8 @@ defmodule ExMP4.Box.Avcc do
 
   defimpl ExMP4.Box do
     def size(box) do
-      sps_size = Enum.map(box.spss, &(byte_size(&1) + 2)) |> Enum.sum()
-      pps_size = Enum.map(box.ppss, &(byte_size(&1) + 2)) |> Enum.sum()
+      sps_size = Enum.map(box.sps, &(byte_size(&1) + 2)) |> Enum.sum()
+      pps_size = Enum.map(box.pps, &(byte_size(&1) + 2)) |> Enum.sum()
       ExMP4.header_size() + 7 + sps_size + pps_size
     end
 
@@ -53,13 +53,13 @@ defmodule ExMP4.Box.Avcc do
           <<1::8, avc_profile_indication::8, profile_compatibility::8, avc_level::8, 0b111111::6,
             length_size_minus_one::2, 0b111::3, rest::bitstring>>
         ) do
-      {spss, rest} = parse_spss(rest)
-      {ppss, _rest} = parse_ppss(rest)
+      {sps, rest} = parse_spss(rest)
+      {pps, _rest} = parse_ppss(rest)
 
       %{
         box
-        | spss: spss,
-          ppss: ppss,
+        | sps: sps,
+          pps: pps,
           avc_profile_indication: avc_profile_indication,
           profile_compatibility: profile_compatibility,
           avc_level: avc_level,
@@ -70,8 +70,8 @@ defmodule ExMP4.Box.Avcc do
     def serialize(box) do
       <<size(box)::32, "avcC", 1, box.avc_profile_indication, box.profile_compatibility,
         box.avc_level, 0b111111::6, box.nalu_length_size - 1::2-integer, 0b111::3,
-        length(box.spss)::5-integer, encode_parameter_sets(box.spss)::binary,
-        length(box.ppss)::8-integer, encode_parameter_sets(box.ppss)::binary>>
+        length(box.sps)::5-integer, encode_parameter_sets(box.sps)::binary,
+        length(box.pps)::8-integer, encode_parameter_sets(box.pps)::binary>>
     end
 
     defp encode_parameter_sets(pss) do

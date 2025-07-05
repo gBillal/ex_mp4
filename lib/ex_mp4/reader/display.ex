@@ -1,4 +1,4 @@
-if Application.ensure_loaded(TableRex) do
+if Code.ensure_loaded?(TableRex) do
   defmodule ExMP4.Reader.Display do
     @moduledoc """
     Show information about MP4 files and tracks using [TableRex](https://hex.pm/packages/table_rex).

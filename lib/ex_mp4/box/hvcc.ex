@@ -4,9 +4,9 @@ defmodule ExMP4.Box.Hvcc do
   """
 
   @type t() :: %__MODULE__{
-          vpss: [binary()],
-          spss: [binary()],
-          ppss: [binary()],
+          vps: [binary()],
+          sps: [binary()],
+          pps: [binary()],
           profile_space: non_neg_integer(),
           tier_flag: non_neg_integer(),
           profile_idc: non_neg_integer(),
@@ -34,16 +34,51 @@ defmodule ExMP4.Box.Hvcc do
     :bit_depth_luma_minus8,
     :bit_depth_chroma_minus8,
     nalu_length_size: 4,
-    vpss: [],
-    spss: [],
-    ppss: []
+    vps: [],
+    sps: [],
+    pps: []
   ]
+
+  if Code.ensure_compiled!(MediaCodecs) do
+    @doc """
+    Creates a new `hvcC` box from parameter sets.
+
+    Only available if [MediaCodecs](https://hex.pm/packages/media_codecs) is installed.
+    """
+    @spec new([binary()], [binary()], [binary()], non_neg_integer()) :: t()
+    def new(vps, sps, pps, nalu_length_size \\ 4) do
+      parsed_sps = MediaCodecs.H265.NALU.SPS.parse(List.first(sps))
+
+      <<constraint_indicator_flags::48>> =
+        <<parsed_sps.progressive_source_flag::1, parsed_sps.interlaced_source_flag::1,
+          parsed_sps.non_packed_constraint_flag::1, parsed_sps.frame_only_constraint_flag::1,
+          0::44>>
+
+      %__MODULE__{
+        vps: vps,
+        sps: sps,
+        pps: pps,
+        profile_space: parsed_sps.profile_space,
+        tier_flag: parsed_sps.tier_flag,
+        profile_idc: parsed_sps.profile_idc,
+        profile_compatibility_flags: parsed_sps.profile_compatibility_flag,
+        constraint_indicator_flags: constraint_indicator_flags,
+        level_idc: parsed_sps.level_idc,
+        chroma_format_idc: parsed_sps.chroma_format_idc,
+        bit_depth_chroma_minus8: parsed_sps.bit_depth_chroma_minus8,
+        bit_depth_luma_minus8: parsed_sps.bit_depth_luma_minus8,
+        temporal_id_nested: parsed_sps.temporal_id_nesting_flag,
+        num_temporal_layers: parsed_sps.max_sub_layers_minus1,
+        nalu_length_size: nalu_length_size
+      }
+    end
+  end
 
   defimpl ExMP4.Box do
     def size(box) do
-      vps_size = Enum.map(box.vpss, &(byte_size(&1) + 2)) |> Enum.sum()
-      sps_size = Enum.map(box.spss, &(byte_size(&1) + 2)) |> Enum.sum()
-      pps_size = Enum.map(box.ppss, &(byte_size(&1) + 2)) |> Enum.sum()
+      vps_size = Enum.map(box.vps, &(byte_size(&1) + 2)) |> Enum.sum()
+      sps_size = Enum.map(box.sps, &(byte_size(&1) + 2)) |> Enum.sum()
+      pps_size = Enum.map(box.pps, &(byte_size(&1) + 2)) |> Enum.sum()
       # header size + size of elements + parameter sets size + parameter sets header size
       ExMP4.header_size() + 23 + vps_size + sps_size + pps_size + 9
     end
@@ -58,22 +93,22 @@ defmodule ExMP4.Box.Hvcc do
             num_temporal_layers::3, temporal_id_nested::1, length_size_minus_one::2-integer,
             num_of_arrays::8, rest::binary>>
         ) do
-      {vpss, spss, ppss} =
+      {vps, sps, pps} =
         if num_of_arrays > 0 do
-          {vpss, rest} = parse_pss(rest, 32)
-          {spss, rest} = parse_pss(rest, 33)
-          {ppss, _rest} = parse_pss(rest, 34)
+          {vps, rest} = parse_pss(rest, 32)
+          {sps, rest} = parse_pss(rest, 33)
+          {pps, _rest} = parse_pss(rest, 34)
 
-          {vpss, spss, ppss}
+          {vps, sps, pps}
         else
           {[], [], []}
         end
 
       %{
         box
-        | vpss: vpss,
-          spss: spss,
-          ppss: ppss,
+        | vps: vps,
+          sps: sps,
+          pps: pps,
           profile_space: profile_space,
           tier_flag: tier_flag,
           profile_idc: profile_idc,
@@ -95,8 +130,8 @@ defmodule ExMP4.Box.Hvcc do
         0b1111::4, 0::12, 0b111111::6, 0::2, 0b111111::6, box.chroma_format_idc::2, 0b11111::5,
         box.bit_depth_luma_minus8::3, 0b11111::5, box.bit_depth_chroma_minus8::3, 0::18,
         box.num_temporal_layers::3, box.temporal_id_nested::1,
-        box.nalu_length_size - 1::2-integer, 3::8, encode_parameter_sets(box.vpss, 32)::binary,
-        encode_parameter_sets(box.spss, 33)::binary, encode_parameter_sets(box.ppss, 34)::binary>>
+        box.nalu_length_size - 1::2-integer, 3::8, encode_parameter_sets(box.vps, 32)::binary,
+        encode_parameter_sets(box.sps, 33)::binary, encode_parameter_sets(box.pps, 34)::binary>>
     end
 
     defp parse_pss(<<_reserved::2, type::6, num_of_pss::16, rest::bitstring>>, type) do

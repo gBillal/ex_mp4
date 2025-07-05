@@ -48,17 +48,17 @@ defmodule ExMP4.BitStreamFilter.MP4ToAnnexb do
   defp init_module(%{priv_data: %ExMP4.Box.Avcc{} = priv_data}) do
     %__MODULE__{
       nalu_prefix_size: priv_data.nalu_length_size,
-      sps: Enum.map(priv_data.spss, &(@nalu_prefix <> &1)),
-      pps: Enum.map(priv_data.ppss, &(@nalu_prefix <> &1))
+      sps: Enum.map(priv_data.sps, &(@nalu_prefix <> &1)),
+      pps: Enum.map(priv_data.pps, &(@nalu_prefix <> &1))
     }
   end
 
   defp init_module(%{priv_data: %ExMP4.Box.Hvcc{} = priv_data}) do
     %__MODULE__{
       nalu_prefix_size: priv_data.nalu_length_size,
-      vps: Enum.map(priv_data.vpss, &(@nalu_prefix <> &1)),
-      sps: Enum.map(priv_data.spss, &(@nalu_prefix <> &1)),
-      pps: Enum.map(priv_data.ppss, &(@nalu_prefix <> &1))
+      vps: Enum.map(priv_data.vps, &(@nalu_prefix <> &1)),
+      sps: Enum.map(priv_data.sps, &(@nalu_prefix <> &1)),
+      pps: Enum.map(priv_data.pps, &(@nalu_prefix <> &1))
     }
   end
 
