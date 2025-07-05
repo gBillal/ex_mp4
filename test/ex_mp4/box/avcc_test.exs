@@ -6,11 +6,11 @@ defmodule ExMP4.Box.AvccTest do
   alias ExMP4.Box.Avcc
 
   @dcr %Avcc{
-    spss: [
+    sps: [
       <<103, 77, 64, 30, 217, 0, 160, 61, 176, 17, 0, 0, 3, 3, 233, 0, 0, 187, 128, 15, 22, 46,
         72>>
     ],
-    ppss: [<<104, 235, 143, 32>>],
+    pps: [<<104, 235, 143, 32>>],
     avc_profile_indication: 77,
     avc_level: 30,
     profile_compatibility: 64,
@@ -21,7 +21,7 @@ defmodule ExMP4.Box.AvccTest do
                     0, 3, 3, 233, 0, 0, 187, 128, 15, 22, 46, 72, 1, 0, 4, 104, 235, 143, 32>>
 
   test "new" do
-    assert Avcc.new(@dcr.spss, @dcr.ppss) == @dcr
+    assert Avcc.new(@dcr.sps, @dcr.pps) == @dcr
   end
 
   test "serialize" do

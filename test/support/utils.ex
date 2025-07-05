@@ -25,7 +25,7 @@ defmodule ExMP4.Support.Utils do
                  id: 2,
                  type: :audio,
                  media: :aac,
-                 priv_data: <<0, 0, 1, 3, 2>>,
+                 priv_data: %ExMP4.Box.Esds{es_descriptor: <<0, 0, 1, 3, 2>>},
                  timescale: 48_000,
                  sample_rate: 48_000,
                  channels: 2
