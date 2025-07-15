@@ -39,7 +39,7 @@ defmodule ExMP4.MixProject do
     [
       {:ratio, "~> 4.0"},
       {:bunch, "~> 1.6"},
-      {:media_codecs, "~> 0.4.0", optional: true},
+      {:media_codecs, "~> 0.7.0", optional: true},
       {:table_rex, "~> 4.0", optional: true},
       {:ex_doc, "~> 0.34", only: :dev, runtime: false},
       {:dialyxir, ">= 0.0.0", only: :dev, runtime: false},

@@ -48,22 +48,22 @@ defmodule ExMP4.Box.Hvcc do
     @spec new([binary()], [binary()], [binary()], non_neg_integer()) :: t()
     def new(vps, sps, pps, nalu_length_size \\ 4) do
       parsed_sps = MediaCodecs.H265.NALU.SPS.parse(List.first(sps))
+      profile = parsed_sps.profile_tier_level
 
       <<constraint_indicator_flags::48>> =
-        <<parsed_sps.progressive_source_flag::1, parsed_sps.interlaced_source_flag::1,
-          parsed_sps.non_packed_constraint_flag::1, parsed_sps.frame_only_constraint_flag::1,
-          0::44>>
+        <<profile.progressive_source_flag::1, profile.interlaced_source_flag::1,
+          profile.non_packed_constraint_flag::1, profile.frame_only_constraint_flag::1, 0::44>>
 
       %__MODULE__{
         vps: vps,
         sps: sps,
         pps: pps,
-        profile_space: parsed_sps.profile_space,
-        tier_flag: parsed_sps.tier_flag,
-        profile_idc: parsed_sps.profile_idc,
-        profile_compatibility_flags: parsed_sps.profile_compatibility_flag,
+        profile_space: profile.profile_space,
+        tier_flag: profile.tier_flag,
+        profile_idc: profile.profile_idc,
+        profile_compatibility_flags: profile.profile_compatibility_flag,
         constraint_indicator_flags: constraint_indicator_flags,
-        level_idc: parsed_sps.level_idc,
+        level_idc: profile.level_idc,
         chroma_format_idc: parsed_sps.chroma_format_idc,
         bit_depth_chroma_minus8: parsed_sps.bit_depth_chroma_minus8,
         bit_depth_luma_minus8: parsed_sps.bit_depth_luma_minus8,
