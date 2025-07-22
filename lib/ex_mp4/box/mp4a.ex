@@ -27,8 +27,8 @@ defmodule ExMP4.Box.Mp4a do
 
     def parse(
           box,
-          <<0::48, data_reference_index::16, 0::64, channel_count::16, sample_size::16, 0::32,
-            sample_rate_hi::16, sample_rate_lo::16, rest::binary>>
+          <<0::48, data_reference_index::16, 0::64, channel_count::16, sample_size::16,
+            _predefined::16, 0::16, sample_rate_hi::16, sample_rate_lo::16, rest::binary>>
         ) do
       %{
         box

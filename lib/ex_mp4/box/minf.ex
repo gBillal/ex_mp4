@@ -64,7 +64,6 @@ defmodule ExMP4.Box.Minf do
             {box, rest}
 
           {_box_name, _box_data, rest} ->
-            # box = %{box | mdia: ExMP4.Box.parse(%Mdia{}, box_data)}
             {box, rest}
         end
 
