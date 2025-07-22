@@ -18,7 +18,7 @@ defmodule ExMP4.Box.Hdlr do
   defimpl ExMP4.Box do
     def size(box), do: ExMP4.full_box_header_size() + byte_size(box.name) + 21
 
-    def parse(box, <<version::8, flags::24, 0::32, type::binary-size(4), 0::32*3, name::binary>>) do
+    def parse(box, <<version::8, flags::24, _::32, type::binary-size(4), 0::32*3, name::binary>>) do
       %{
         box
         | version: version,
