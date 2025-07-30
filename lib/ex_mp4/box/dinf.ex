@@ -50,7 +50,7 @@ defmodule ExMP4.Box.Dinf do
         {"url ", box_data, rest} ->
           [ExMP4.Box.parse(%DataEntryURL{}, box_data) | parse_entries(rest)]
 
-        {name, box_data, rest} ->
+        {_name, _box_data, rest} ->
           parse_entries(rest)
       end
     end
