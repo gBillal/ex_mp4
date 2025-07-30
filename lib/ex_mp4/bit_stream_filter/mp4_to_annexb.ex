@@ -20,14 +20,15 @@ defmodule ExMP4.BitStreamFilter.MP4ToAnnexb do
           nalu_prefix_size: integer(),
           vps: list(binary()),
           sps: list(binary()),
-          pps: list(binary())
+          pps: list(binary()),
+          output_structure: :annexb | :nalu
         }
 
-  defstruct nalu_prefix_size: 0, vps: [], sps: [], pps: []
+  defstruct nalu_prefix_size: 0, vps: [], sps: [], pps: [], output_structure: :annexb
 
   @impl true
-  def init(%Track{type: :video, media: media} = track, _opts) when media in [:h264, :h265] do
-    {:ok, init_module(track)}
+  def init(%Track{type: :video, media: media} = track, opts) when media in [:h264, :h265] do
+    {:ok, init_module(track, opts)}
   end
 
   def init(_track, _opts) do
@@ -36,37 +37,53 @@ defmodule ExMP4.BitStreamFilter.MP4ToAnnexb do
 
   @impl true
   def filter(state, %Sample{} = sample) do
-    payload =
+    nalus =
       case sample.sync? do
-        true -> get_parameter_sets(state) <> to_annexb(sample.payload, state.nalu_prefix_size)
-        false -> to_annexb(sample.payload, state.nalu_prefix_size)
+        true ->
+          Enum.concat([
+            state.vps,
+            state.sps,
+            state.pps,
+            get_nalus(sample.payload, state.nalu_prefix_size)
+          ])
+
+        false ->
+          get_nalus(sample.payload, state.nalu_prefix_size)
       end
 
-    {%Sample{sample | payload: payload}, state}
+    case state.output_structure do
+      :nalu ->
+        {%Sample{sample | payload: nalus}, state}
+
+      :annexb ->
+        {%Sample{sample | payload: to_annexb(nalus)}, state}
+    end
   end
 
-  defp init_module(%{priv_data: %ExMP4.Box.Avcc{} = priv_data}) do
+  defp init_module(%{priv_data: %ExMP4.Box.Avcc{} = priv_data}, opts) do
     %__MODULE__{
       nalu_prefix_size: priv_data.nalu_length_size,
-      sps: Enum.map(priv_data.sps, &(@nalu_prefix <> &1)),
-      pps: Enum.map(priv_data.pps, &(@nalu_prefix <> &1))
+      sps: priv_data.sps,
+      pps: priv_data.pps,
+      output_structure: Keyword.get(opts, :output_structure, :annexb)
     }
   end
 
-  defp init_module(%{priv_data: %ExMP4.Box.Hvcc{} = priv_data}) do
+  defp init_module(%{priv_data: %ExMP4.Box.Hvcc{} = priv_data}, opts) do
     %__MODULE__{
       nalu_prefix_size: priv_data.nalu_length_size,
-      vps: Enum.map(priv_data.vps, &(@nalu_prefix <> &1)),
-      sps: Enum.map(priv_data.sps, &(@nalu_prefix <> &1)),
-      pps: Enum.map(priv_data.pps, &(@nalu_prefix <> &1))
+      vps: priv_data.vps,
+      sps: priv_data.sps,
+      pps: priv_data.pps,
+      output_structure: Keyword.get(opts, :output_structure, :annexb)
     }
   end
 
-  defp get_parameter_sets(state), do: Enum.join(state.vps ++ state.sps ++ state.pps)
+  defp to_annexb(nalus) do
+    for nalu <- nalus, into: <<>>, do: @nalu_prefix <> nalu
+  end
 
-  defp to_annexb(access_unit, nalu_prefix_size) do
-    for <<size::size(8 * nalu_prefix_size), nalu::binary-size(size) <- access_unit>>,
-      into: <<>>,
-      do: @nalu_prefix <> nalu
+  defp get_nalus(access_unit, nalu_prefix_size) do
+    for <<size::size(8 * nalu_prefix_size), nalu::binary-size(size) <- access_unit>>, do: nalu
   end
 end
