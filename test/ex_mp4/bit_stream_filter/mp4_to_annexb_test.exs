@@ -6,8 +6,8 @@ defmodule ExMP4.BitStreamFilter.MP4ToAnnexbTest do
   alias ExMP4.BitStreamFilter.MP4ToAnnexb
   alias ExMP4.Reader
 
-  @sps <<103, 100, 0, 13, 172, 217, 65, 65, 250, 16, 0, 0, 3, 0, 16, 0, 0, 3, 3, 32,
-         241, 66, 153, 96>>
+  @sps <<103, 100, 0, 13, 172, 217, 65, 65, 250, 16, 0, 0, 3, 0, 16, 0, 0, 3, 3, 32, 241, 66, 153,
+         96>>
   @pps <<104, 235, 227, 203, 34, 192>>
   @annexb_prefix <<1::32>>
 
@@ -28,7 +28,8 @@ defmodule ExMP4.BitStreamFilter.MP4ToAnnexbTest do
     assert {sample, ^state} =
              MP4ToAnnexb.filter(state, Reader.read_sample(reader, video_track.id, 0))
 
-    assert @annexb_prefix <> @sps <> @annexb_prefix <> @pps <> @annexb_prefix <> _rest = sample.payload
+    assert @annexb_prefix <> @sps <> @annexb_prefix <> @pps <> @annexb_prefix <> _rest =
+             sample.payload
   end
 
   test "convert mp4 to nalus" do
