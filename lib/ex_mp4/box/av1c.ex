@@ -35,8 +35,7 @@ defmodule ExMP4.Box.Av1c do
 
   defimpl ExMP4.Box do
     def size(box) do
-      config_obus = Enum.map(box.config_obus, &byte_size/1) |> Enum.sum()
-      ExMP4.header_size() + config_obus + 4
+      ExMP4.header_size() + IO.iodata_length(box.config_obus) + 4
     end
 
     def parse(

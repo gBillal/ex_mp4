@@ -269,7 +269,7 @@ defmodule ExMP4.Writer do
     track = Track.flush_chunk(track, chunk_offset(writer))
 
     chunk_data = Enum.reverse(data)
-    chunk_size = Enum.map(chunk_data, &byte_size/1) |> Enum.sum()
+    chunk_size = IO.iodata_length(chunk_data)
 
     writer.writer_mod.write(writer.writer_state, chunk_data)
 

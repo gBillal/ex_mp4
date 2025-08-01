@@ -11,7 +11,7 @@ defmodule ExMP4.Sample do
           dts: non_neg_integer(),
           duration: integer(),
           sync?: boolean(),
-          payload: binary() | nil
+          payload: iodata() | nil
         }
 
   @enforce_keys [:track_id, :pts, :dts, :duration]
