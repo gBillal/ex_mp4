@@ -38,6 +38,15 @@ defmodule ExMP4.Box.Esds do
 
       %__MODULE__{es_descriptor: ESDescriptor.serialize(es_descriptor)}
     end
+
+    @doc """
+    Gets the audio specific configuration from the `esds` box.
+    """
+    @spec audio_specific_config(t()) :: binary()
+    def audio_specific_config(esds) do
+      descriptor = ESDescriptor.parse(esds.es_descriptor)
+      descriptor.dec_config_descr.decoder_specific_info
+    end
   end
 
   defimpl ExMP4.Box do
