@@ -95,4 +95,29 @@ defmodule ExMP4.BoxTest do
     assert ExMP4.Box.serialize(styp) |> IO.iodata_to_binary() == expected
     assert ExMP4.Box.parse(%ExMP4.Box.Styp{}, :binary.part(expected, 8, 16)) == styp
   end
+
+  test "serialize and parse av1C" do
+    data =
+      <<0, 0, 0, 25, 97, 118, 49, 67, 129, 8, 12, 0, 10, 11, 0, 0, 0, 66, 167, 191, 230, 46, 223,
+        200, 66>>
+
+    expected = %ExMP4.Box.Av1c{
+      seq_profile: 0,
+      seq_level_idx_0: 8,
+      seq_tier_0: 0,
+      high_bitdepth: 0,
+      twelve_bit: 0,
+      monochrome: 0,
+      chroma_subsampling_x: 1,
+      chroma_subsampling_y: 1,
+      chroma_sample_position: 0,
+      initial_presentation_delay_present: 0,
+      initial_presentation_delay_minus_one: 0,
+      config_obus: [<<10, 11, 0, 0, 0, 66, 167, 191, 230, 46, 223, 200, 66>>]
+    }
+
+    assert <<25::32, "av1C", box_data::binary>> = data
+    assert ExMP4.Box.parse(%ExMP4.Box.Av1c{}, box_data) == expected
+    assert ExMP4.Box.serialize(expected) |> IO.iodata_to_binary() == data
+  end
 end
