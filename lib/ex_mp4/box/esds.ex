@@ -44,8 +44,8 @@ defmodule ExMP4.Box.Esds do
     """
     @spec audio_specific_config(t()) :: binary()
     def audio_specific_config(esds) do
-      descriptor = ESDescriptor.parse(esds.es_descriptor)
-      descriptor.dec_config_descr.decoder_specific_info
+      [es_desc] = MediaCodecs.MPEG4.parse_descriptors(esds.es_descriptor)
+      es_desc.dec_config_descr.decoder_specific_info
     end
   end
 
