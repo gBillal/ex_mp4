@@ -354,7 +354,7 @@ defmodule ExMP4.Track do
     stsz = %{
       stsz
       | sample_count: stsz.sample_count + 1,
-        entries: [byte_size(payload) | stsz.entries]
+        entries: [IO.iodata_length(payload) | stsz.entries]
     }
 
     %Stbl{stbl | stsz: stsz}

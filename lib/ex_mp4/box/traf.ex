@@ -65,7 +65,7 @@ defmodule ExMP4.Box.Traf do
   def store_sample(%{trun: [run]} = traf, sample) do
     run_entry = %{
       sample_duration: sample.duration,
-      sample_size: byte_size(sample.payload),
+      sample_size: IO.iodata_length(sample.payload),
       sample_flags: if(sample.sync?, do: 0, else: 0x10000),
       sample_composition_time_offset: sample.pts - sample.dts
     }
@@ -74,8 +74,13 @@ defmodule ExMP4.Box.Traf do
     %{traf | trun: [run]}
   end
 
+  @spec finalize(t()) :: t()
   @spec finalize(t(), boolean()) :: t()
-  def finalize(%{trun: [run], tfhd: tfhd} = traf, base_is_moof? \\ false) do
+  def finalize(traf, base_is_moof? \\ false)
+
+  def finalize(%{trun: [%Trun{entries: []}]} = traf, _base_is_moof?), do: traf
+
+  def finalize(%{trun: [run], tfhd: tfhd} = traf, base_is_moof?) do
     [first_entry | _entries] = run.entries
 
     {same_duration?, same_size?, same_flags?, zero_offset?} =
@@ -99,6 +104,7 @@ defmodule ExMP4.Box.Traf do
     %{traf | trun: [run], tfhd: track_header(tfhd, tr_flags, first_entry)}
   end
 
+  @spec update_base_offset(t(), integer()) :: t()
   @spec update_base_offset(t(), integer(), integer()) :: t()
   def update_base_offset(traf, base_offset, trun_data_offset \\ 0) do
     %{trun: truns, tfhd: tfhd} = traf
