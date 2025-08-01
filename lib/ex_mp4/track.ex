@@ -7,7 +7,7 @@ defmodule ExMP4.Track do
   alias ExMP4.{Helper, Sample}
 
   @type id :: non_neg_integer()
-  @type codecs :: :h264 | :h265 | :vp8 | :vp9 | :aac | :opus | :raw | :unknown
+  @type codecs :: :av1 | :h264 | :h265 | :vp8 | :vp9 | :aac | :opus | :raw | :unknown
   @type media_types :: :video | :audio | :subtitle | :unknown
 
   @public_fields ~w(id type media media_tag width height sample_rate channels priv_data timescale duration sample_count)a
@@ -276,6 +276,17 @@ defmodule ExMP4.Track do
     }
   end
 
+  defp get_media(track, %{av01: av01}) when not is_nil(av01) do
+    %{
+      track
+      | media: :av1,
+        width: av01.width,
+        height: av01.height,
+        priv_data: av01.av1c,
+        media_tag: :av01
+    }
+  end
+
   defp get_media(track, %{mp4a: mp4a}) when not is_nil(mp4a) do
     %{
       track
@@ -422,6 +433,16 @@ defmodule ExMP4.Track do
     }
 
     %ExMP4.Box.Stsd{vp09: vpx}
+  end
+
+  defp sample_description_table(%{media: :av1} = track) do
+    av01 = %ExMP4.Box.Av01{
+      width: track.width,
+      height: track.height,
+      av1c: track.priv_data
+    }
+
+    %ExMP4.Box.Stsd{av01: av01}
   end
 
   defp sample_description_table(%{media: :aac} = track) do
