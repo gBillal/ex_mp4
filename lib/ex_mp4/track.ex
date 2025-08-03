@@ -298,6 +298,17 @@ defmodule ExMP4.Track do
     }
   end
 
+  defp get_media(track, %{opus: opus}) when not is_nil(opus) do
+    %{
+      track
+      | media: :opus,
+        priv_data: opus.dops,
+        channels: opus.channel_count,
+        sample_rate: elem(opus.sample_rate, 0),
+        media_tag: :Opus
+    }
+  end
+
   defp get_media(track, %{ipcm: ipcm, fpcm: fpcm}) when not is_nil(ipcm) or not is_nil(fpcm) do
     {pcm, tag} = if is_nil(fpcm), do: {ipcm, :ipcm}, else: {fpcm, :fpcm}
 
@@ -451,6 +462,16 @@ defmodule ExMP4.Track do
         channel_count: track.channels,
         sample_rate: {track.sample_rate, 0},
         esds: track.priv_data
+      }
+    }
+  end
+
+  defp sample_description_table(%{media: :opus} = track) do
+    %ExMP4.Box.Stsd{
+      opus: %ExMP4.Box.Opus{
+        channel_count: track.channels,
+        sample_rate: {track.sample_rate, 0},
+        dops: track.priv_data
       }
     }
   end
