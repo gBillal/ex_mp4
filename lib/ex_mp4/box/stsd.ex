@@ -9,7 +9,7 @@ defmodule ExMP4.Box.Stsd do
   import ExMP4.Box.Utils, only: [parse_header: 1]
 
   alias ExMP4.Box
-  alias ExMP4.Box.{Av01, Avc, Fpcm, Hevc, Ipcm, Mp4a, VP08, VP09}
+  alias ExMP4.Box.{Av01, Avc, Fpcm, Hevc, Ipcm, Mp4a, Opus, VP08, VP09}
 
   @type t :: %__MODULE__{
           version: integer(),
@@ -23,7 +23,8 @@ defmodule ExMP4.Box.Stsd do
           vp08: VP08.t() | nil,
           vp09: VP09.t() | nil,
           ipcm: Ipcm.t() | nil,
-          fpcm: Fpcm.t() | nil
+          fpcm: Fpcm.t() | nil,
+          opus: Opus.t() | nil
         }
 
   defstruct version: 0,
@@ -37,7 +38,8 @@ defmodule ExMP4.Box.Stsd do
             vp08: nil,
             vp09: nil,
             ipcm: nil,
-            fpcm: nil
+            fpcm: nil,
+            opus: nil
 
   defimpl ExMP4.Box do
     @codecs %{
@@ -50,13 +52,15 @@ defmodule ExMP4.Box.Stsd do
       "vp08" => %VP08{},
       "vp09" => %VP09{},
       "ipcm" => %Ipcm{},
-      "fpcm" => %Fpcm{}
+      "fpcm" => %Fpcm{},
+      "Opus" => %Opus{}
     }
 
     def size(box) do
       ExMP4.full_box_header_size() + 4 + Box.size(box.av01) + Box.size(box.avc1) +
         Box.size(box.avc3) + Box.size(box.mp4a) + Box.size(box.hvc1) + Box.size(box.hev1) +
-        Box.size(box.vp08) + Box.size(box.vp09) + Box.size(box.ipcm) + Box.size(box.fpcm)
+        Box.size(box.vp08) + Box.size(box.vp09) + Box.size(box.ipcm) + Box.size(box.fpcm) +
+        Box.size(box.opus)
     end
 
     def parse(box, <<version::8, flags::24, 1::32, rest::binary>>) do
@@ -76,7 +80,8 @@ defmodule ExMP4.Box.Stsd do
         Box.serialize(box.vp08),
         Box.serialize(box.vp09),
         Box.serialize(box.ipcm),
-        Box.serialize(box.fpcm)
+        Box.serialize(box.fpcm),
+        Box.serialize(box.opus)
       ]
     end
 
@@ -88,6 +93,7 @@ defmodule ExMP4.Box.Stsd do
       box =
         case Map.fetch(@codecs, box_name) do
           {:ok, codec_struct} ->
+            box_name = String.downcase(box_name)
             Map.put(box, String.to_atom(box_name), Box.parse(codec_struct, box_data))
 
           :error ->

@@ -37,6 +37,58 @@ defmodule ExMP4.BoxTest do
     assert ExMP4.Box.serialize(box) |> IO.iodata_to_binary() == ipcm
   end
 
+  test "Parse and serialize av1C" do
+    data =
+      <<0, 0, 0, 25, 97, 118, 49, 67, 129, 8, 12, 0, 10, 11, 0, 0, 0, 66, 167, 191, 230, 46, 223,
+        200, 66>>
+
+    expected = %ExMP4.Box.Av1c{
+      seq_profile: 0,
+      seq_level_idx_0: 8,
+      seq_tier_0: 0,
+      high_bitdepth: 0,
+      twelve_bit: 0,
+      monochrome: 0,
+      chroma_subsampling_x: 1,
+      chroma_subsampling_y: 1,
+      chroma_sample_position: 0,
+      initial_presentation_delay_present: 0,
+      initial_presentation_delay_minus_one: 0,
+      config_obus: [<<10, 11, 0, 0, 0, 66, 167, 191, 230, 46, 223, 200, 66>>]
+    }
+
+    assert <<25::32, "av1C", box_data::binary>> = data
+    assert ExMP4.Box.parse(%ExMP4.Box.Av1c{}, box_data) == expected
+    assert ExMP4.Box.serialize(expected) |> IO.iodata_to_binary() == data
+  end
+
+  test "Parse and serialize Opus" do
+    data =
+      <<0, 0, 0, 55, 79, 112, 117, 115, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0,
+        16, 0, 0, 0, 0, 187, 128, 0, 0, 0, 0, 0, 19, 100, 79, 112, 115, 0, 2, 1, 56, 0, 0, 187,
+        128, 0, 0, 0>>
+
+    assert <<55::32, "Opus", box_data::binary>> = data
+
+    expected_box = %ExMP4.Box.Opus{
+      sample_size: 16,
+      channel_count: 2,
+      data_reference_index: 1,
+      sample_rate: {48000, 0},
+      dops: %ExMP4.Box.Dops{
+        output_channel_count: 2,
+        pre_skip: 312,
+        input_sample_rate: 48000,
+        output_gain: 0,
+        channel_mapping_family: 0,
+        channel_mapping_table: nil
+      }
+    }
+
+    assert ExMP4.Box.parse(%ExMP4.Box.Opus{}, box_data) == expected_box
+    assert ExMP4.Box.serialize(expected_box) |> IO.iodata_to_binary() == data
+  end
+
   test "serialize and parse sidx" do
     sidx = %ExMP4.Box.Sidx{
       version: 0,
@@ -94,30 +146,5 @@ defmodule ExMP4.BoxTest do
     assert ExMP4.Box.size(styp) == 24
     assert ExMP4.Box.serialize(styp) |> IO.iodata_to_binary() == expected
     assert ExMP4.Box.parse(%ExMP4.Box.Styp{}, :binary.part(expected, 8, 16)) == styp
-  end
-
-  test "serialize and parse av1C" do
-    data =
-      <<0, 0, 0, 25, 97, 118, 49, 67, 129, 8, 12, 0, 10, 11, 0, 0, 0, 66, 167, 191, 230, 46, 223,
-        200, 66>>
-
-    expected = %ExMP4.Box.Av1c{
-      seq_profile: 0,
-      seq_level_idx_0: 8,
-      seq_tier_0: 0,
-      high_bitdepth: 0,
-      twelve_bit: 0,
-      monochrome: 0,
-      chroma_subsampling_x: 1,
-      chroma_subsampling_y: 1,
-      chroma_sample_position: 0,
-      initial_presentation_delay_present: 0,
-      initial_presentation_delay_minus_one: 0,
-      config_obus: [<<10, 11, 0, 0, 0, 66, 167, 191, 230, 46, 223, 200, 66>>]
-    }
-
-    assert <<25::32, "av1C", box_data::binary>> = data
-    assert ExMP4.Box.parse(%ExMP4.Box.Av1c{}, box_data) == expected
-    assert ExMP4.Box.serialize(expected) |> IO.iodata_to_binary() == data
   end
 end
