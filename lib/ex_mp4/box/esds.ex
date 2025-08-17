@@ -41,6 +41,8 @@ defmodule ExMP4.Box.Esds do
 
     @doc """
     Gets the audio specific configuration from the `esds` box.
+
+    Only available if [MediaCodecs](https://hex.pm/packages/media_codecs) is installed.
     """
     @spec audio_specific_config(t()) :: binary()
     def audio_specific_config(esds) do

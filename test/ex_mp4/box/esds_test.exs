@@ -1,7 +1,6 @@
 defmodule ExMP4.Box.EsdsTest do
   use ExUnit.Case, async: true
 
-  alias MediaCodecs.MPEG4.AudioSpecificConfig
   alias ExMP4.Box.Esds
 
   test "get audio specific config" do
