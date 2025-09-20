@@ -18,7 +18,7 @@ The package can be installed by adding `ex_mp4` to your list of dependencies in 
 ```elixir
 def deps do
   [
-    {:ex_mp4, "~> 0.12.0"}
+    {:ex_mp4, "~> 0.12.1"}
   ]
 end
 ```
@@ -28,4 +28,4 @@ The API is not yet stable, so breaking changes may occur when upgrading minor ve
 
 ## Usage
 
-check the `examples` folder for usage. 
+check the `examples` folder for usage.

@@ -39,7 +39,7 @@ defmodule ExMP4.Box.Hvcc do
     pps: []
   ]
 
-  if Code.ensure_compiled!(MediaCodecs) do
+  if Code.ensure_loaded?(MediaCodecs) do
     @doc """
     Creates a new `hvcC` box from parameter sets.
 
