@@ -1,7 +1,7 @@
 defmodule ExMP4.MixProject do
   use Mix.Project
 
-  @version "0.12.0"
+  @version "0.12.1"
   @github_url "https://github.com/gBillal/ex_mp4"
 
   def project do
@@ -41,6 +41,7 @@ defmodule ExMP4.MixProject do
       {:bunch, "~> 1.6"},
       {:media_codecs, "~> 0.8.0", optional: true},
       {:table_rex, "~> 4.0", optional: true},
+      {:benchee, ">= 0.0.0", only: :dev},
       {:ex_doc, "~> 0.34", only: :dev, runtime: false},
       {:dialyxir, ">= 0.0.0", only: :dev, runtime: false},
       {:credo, ">= 0.0.0", only: :dev, runtime: false}
