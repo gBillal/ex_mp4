@@ -13,7 +13,7 @@ defmodule ExMP4.Box.Ipcm do
           pcmC: ExMP4.Box.Pcmc.t()
         }
 
-  defstruct [:channel_count, :sample_size, :sample_rate, :pcmC, data_reference_index: 0]
+  defstruct [:channel_count, :sample_size, :sample_rate, :pcmC, data_reference_index: 1]
 
   defimpl ExMP4.Box do
     alias ExMP4.Box.Pcmc
