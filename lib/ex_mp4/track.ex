@@ -78,6 +78,7 @@ defmodule ExMP4.Track do
   def updatable_fields,
     do: ~w(type media media_tag width height sample_rate channels priv_data)a
 
+  @doc false
   @spec from_trak(Trak.t()) :: t()
   def from_trak(%Trak{} = trak) do
     stbl = trak.mdia.minf.stbl
@@ -89,6 +90,7 @@ defmodule ExMP4.Track do
     |> get_sample_count(stbl)
   end
 
+  @doc false
   @spec to_trak(t(), ExMP4.timescale()) :: Trak.t()
   def to_trak(%{sample_table: stbl} = track, movie_timescale) do
     %Trak{

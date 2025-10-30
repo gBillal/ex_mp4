@@ -15,7 +15,7 @@ defmodule ExMP4.Box.Opus do
           dops: Dops.t()
         }
 
-  defstruct data_reference_index: 0,
+  defstruct data_reference_index: 1,
             channel_count: 0,
             sample_size: 16,
             sample_rate: {48_000, 0},

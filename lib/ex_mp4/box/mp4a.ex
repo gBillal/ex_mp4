@@ -15,7 +15,7 @@ defmodule ExMP4.Box.Mp4a do
           esds: Esds.t() | nil
         }
 
-  defstruct data_reference_index: 0,
+  defstruct data_reference_index: 1,
             channel_count: 2,
             sample_size: 16,
             sample_rate: {0, 0},
