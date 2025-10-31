@@ -3,6 +3,8 @@ defmodule ExMP4.TrackTest do
 
   use ExUnit.Case
 
+  alias ExMP4.Track
+
   describe "track functions" do
     test "progressive file" do
       reader = ExMP4.Reader.new!("test/fixtures/minimal.mp4")
@@ -39,5 +41,22 @@ defmodule ExMP4.TrackTest do
 
       ExMP4.Reader.close(reader)
     end
+  end
+
+  test "Read samples metadata" do
+    reader = ExMP4.Reader.new!("test/fixtures/minimal.mp4")
+
+    video_track = Enum.find(ExMP4.Reader.tracks(reader), &(&1.type == :video))
+    audio_track = Enum.find(ExMP4.Reader.tracks(reader), &(&1.type == :audio))
+
+    assert {%ExMP4.SampleMetadata{}, video_track} = Track.next_sample(video_track)
+    assert :done = Track.next_sample(video_track)
+
+    assert {%ExMP4.SampleMetadata{}, audio_track} = Track.next_sample(audio_track)
+    assert {%ExMP4.SampleMetadata{}, audio_track} = Track.next_sample(audio_track)
+    assert {%ExMP4.SampleMetadata{}, audio_track} = Track.next_sample(audio_track)
+    assert :done = Track.next_sample(audio_track)
+
+    ExMP4.Reader.close(reader)
   end
 end
