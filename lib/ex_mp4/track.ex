@@ -129,15 +129,15 @@ defmodule ExMP4.Track do
   end
 
   @doc """
-  Create a new track
+  Creates a new track
   """
   @spec new(Keyword.t()) :: t()
   def new(opts), do: struct!(__MODULE__, opts)
 
   @doc """
-  Get the next sample.
+  Gets the next sample.
   """
-  @spec next_sample(t()) :: {Sample.metadata(), t()} | :done
+  @spec next_sample(t()) :: {ExMP4.SampleMetadata.t(), t()} | :done
   def next_sample(track) do
     reducer =
       track._reducer || (&Enumerable.reduce(track, &1, fn elem, _acc -> {:suspend, elem} end))
@@ -152,7 +152,7 @@ defmodule ExMP4.Track do
   end
 
   @doc """
-  Get the duration of the track.
+  Gets the duration of the track.
   """
   @spec duration(t(), Helper.timescale()) :: integer()
   @spec duration(t()) :: integer()
@@ -161,7 +161,7 @@ defmodule ExMP4.Track do
   end
 
   @doc """
-  Get the bitrate of the track in `bps` (bit per second)
+  Gets the bitrate of the track in `bps` (bit per second)
   """
   @spec bitrate(t()) :: non_neg_integer()
   def bitrate(track) do
@@ -169,7 +169,7 @@ defmodule ExMP4.Track do
   end
 
   @doc """
-  Get the fps (frames per second) of the video track.
+  Gets the fps (frames per second) of the video track.
   """
   @spec fps(t()) :: number()
   def fps(%{type: :video} = track) do
