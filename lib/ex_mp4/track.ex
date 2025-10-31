@@ -71,7 +71,8 @@ defmodule ExMP4.Track do
     sample_count: 0,
     _iter_duration: 0,
     _chunk_id: 1,
-    _stsc_entry: %{first_chunk: 1, samples_per_chunk: 0, sample_description_index: 1}
+    _stsc_entry: %{first_chunk: 1, samples_per_chunk: 0, sample_description_index: 1},
+    _reducer: nil
   ]
 
   @doc false
@@ -132,6 +133,23 @@ defmodule ExMP4.Track do
   """
   @spec new(Keyword.t()) :: t()
   def new(opts), do: struct!(__MODULE__, opts)
+
+  @doc """
+  Get the next sample.
+  """
+  @spec next_sample(t()) :: {Sample.metadata(), t()} | :done
+  def next_sample(track) do
+    reducer =
+      track._reducer || (&Enumerable.reduce(track, &1, fn elem, _acc -> {:suspend, elem} end))
+
+    case reducer.({:cont, nil}) do
+      {:suspended, sample_metadata, reducer} ->
+        {%{sample_metadata | track_id: track.id}, %{track | _reducer: reducer}}
+
+      {:done, _acc} ->
+        :done
+    end
+  end
 
   @doc """
   Get the duration of the track.
