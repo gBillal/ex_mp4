@@ -33,6 +33,55 @@ defmodule ExMP4.Box.Av1c do
     config_obus: []
   ]
 
+  if Code.ensure_loaded?(MediaCodecs) do
+    import MediaCodecs.Helper, only: [bool_to_int: 1]
+
+    alias MediaCodecs.AV1.OBU
+
+    @doc """
+    Creates a new `av1c` box from sequence header OBU.
+
+    Only available if [MediaCodecs](https://hex.pm/packages/media_codecs) is installed.
+
+        iex> obu = <<10, 11, 0, 0, 0, 66, 167, 191, 230, 46, 223, 200, 66>>
+        iex> ExMP4.Box.Av1c.new(obu)
+        %ExMP4.Box.Av1c{
+          chroma_sample_position: 0,
+          chroma_subsampling_x: 1,
+          chroma_subsampling_y: 1,
+          config_obus: [<<10, 11, 0, 0, 0, 66, 167, 191, 230, 46, 223, 200, 66>>],
+          high_bitdepth: 0,
+          initial_presentation_delay_minus_one: 0,
+          initial_presentation_delay_present: 0,
+          monochrome: 0,
+          seq_level_idx_0: 8,
+          seq_profile: 0,
+          seq_tier_0: 0,
+          twelve_bit: 0
+        }
+    """
+    @spec new(binary()) :: t()
+    def new(obu) do
+      %OBU{payload: sequence_header} = OBU.parse!(obu)
+      color_config = sequence_header.color_config
+
+      %__MODULE__{
+        seq_profile: sequence_header.seq_profile,
+        seq_level_idx_0: sequence_header.operating_points[0].seq_level_idx,
+        seq_tier_0: sequence_header.operating_points[0].seq_tier,
+        high_bitdepth: bool_to_int(color_config[:high_bitdepth]),
+        twelve_bit: bool_to_int(color_config[:high_bitdepth] == 12),
+        monochrome: bool_to_int(color_config[:monochrome]),
+        chroma_subsampling_x: color_config[:subsampling_x],
+        chroma_subsampling_y: color_config[:subsampling_y],
+        chroma_sample_position: color_config[:chroma_sample_position],
+        initial_presentation_delay_present: 0,
+        initial_presentation_delay_minus_one: 0,
+        config_obus: [obu]
+      }
+    end
+  end
+
   defimpl ExMP4.Box do
     def size(box) do
       ExMP4.header_size() + IO.iodata_length(box.config_obus) + 4
