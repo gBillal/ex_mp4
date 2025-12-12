@@ -6,11 +6,9 @@ defmodule ExMP4.DataWriter.File do
   @behaviour ExMP4.DataWriter
 
   @impl true
-  def open(filename) do
-    with {:ok, fd} <- File.open(filename, [:binary, :exclusive, :read]) do
-      {:ok, {fd, filename}}
-    end
-  end
+  def open({filename, modes}), do: do_open(filename, modes ++ [:binary, :read])
+
+  def open(filename), do: do_open(filename, [:binary, :exclusive, :read])
 
   @impl true
   def write(_state, data, loc \\ nil, insert? \\ false)
@@ -45,6 +43,12 @@ defmodule ExMP4.DataWriter.File do
   @impl true
   def close({fd, _filename}) do
     :ok = File.close(fd)
+  end
+
+  defp do_open(filename, modes) do
+    with {:ok, fd} <- File.open(filename, modes) do
+      {:ok, {fd, filename}}
+    end
   end
 
   defp position!(fd, position) do

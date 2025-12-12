@@ -9,6 +9,9 @@ defmodule ExMP4.DataReader.File do
   def open({:binary, data}), do: File.open(data, [:binary, :ram, :read])
 
   @impl true
+  def open({path, modes}), do: File.open(path, modes ++ [:binary, :read])
+
+  @impl true
   def open(filename), do: File.open(filename, [:binary, :raw, :read])
 
   @impl true
