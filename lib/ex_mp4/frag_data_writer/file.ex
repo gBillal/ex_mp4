@@ -8,6 +8,7 @@ defmodule ExMP4.FragDataWriter.File do
   alias ExMP4.Box
 
   @impl true
+  def open({filename, modes}), do: File.open(filename, modes ++ [:binary, :write])
   def open(filename), do: File.open(filename, [:binary, :write])
 
   @impl true

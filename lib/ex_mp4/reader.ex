@@ -112,7 +112,7 @@ defmodule ExMP4.Reader do
     do_create_reader({:binary, data}, module)
   end
 
-  def new(filename, module), do: do_create_reader(filename, module)
+  def new(input, module), do: do_create_reader(input, module)
 
   @doc """
   The same as `new/1`, but raises if it fails.
