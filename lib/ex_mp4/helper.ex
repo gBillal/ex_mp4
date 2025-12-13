@@ -3,6 +3,8 @@ defmodule ExMP4.Helper do
   Helper functions.
   """
 
+  @compile {:inline, timescalify: 3, timescalify: 4, convert_unit: 1}
+
   @type timescale :: :nanosecond | :microsecond | :millisecond | :second | integer | Ratio.t()
 
   @units [:nanosecond, :microsecond, :millisecond, :second]

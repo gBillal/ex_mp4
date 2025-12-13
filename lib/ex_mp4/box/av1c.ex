@@ -15,7 +15,7 @@ defmodule ExMP4.Box.Av1c do
           chroma_sample_position: non_neg_integer(),
           initial_presentation_delay_present: 0..1,
           initial_presentation_delay_minus_one: non_neg_integer(),
-          config_obus: [binary()]
+          config_obus: binary()
         }
 
   defstruct [
@@ -30,7 +30,7 @@ defmodule ExMP4.Box.Av1c do
     :chroma_sample_position,
     :initial_presentation_delay_present,
     :initial_presentation_delay_minus_one,
-    config_obus: []
+    config_obus: <<>>
   ]
 
   if Code.ensure_loaded?(MediaCodecs) do
@@ -49,7 +49,7 @@ defmodule ExMP4.Box.Av1c do
           chroma_sample_position: 0,
           chroma_subsampling_x: 1,
           chroma_subsampling_y: 1,
-          config_obus: [<<10, 11, 0, 0, 0, 66, 167, 191, 230, 46, 223, 200, 66>>],
+          config_obus: <<10, 11, 0, 0, 0, 66, 167, 191, 230, 46, 223, 200, 66>>,
           high_bitdepth: 0,
           initial_presentation_delay_minus_one: 0,
           initial_presentation_delay_present: 0,
@@ -77,14 +77,14 @@ defmodule ExMP4.Box.Av1c do
         chroma_sample_position: color_config[:chroma_sample_position],
         initial_presentation_delay_present: 0,
         initial_presentation_delay_minus_one: 0,
-        config_obus: [obu]
+        config_obus: obu
       }
     end
   end
 
   defimpl ExMP4.Box do
     def size(box) do
-      ExMP4.header_size() + IO.iodata_length(box.config_obus) + 4
+      ExMP4.header_size() + byte_size(box.config_obus) + 4
     end
 
     def parse(
@@ -108,7 +108,7 @@ defmodule ExMP4.Box.Av1c do
           chroma_sample_position: chroma_sample_position,
           initial_presentation_delay_present: initial_presentation_delay_present,
           initial_presentation_delay_minus_one: initial_presentation_delay_minus_one,
-          config_obus: if(config_obus == <<>>, do: [], else: [config_obus])
+          config_obus: config_obus
       }
     end
 

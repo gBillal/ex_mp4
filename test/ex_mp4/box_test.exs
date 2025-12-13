@@ -54,7 +54,7 @@ defmodule ExMP4.BoxTest do
       chroma_sample_position: 0,
       initial_presentation_delay_present: 0,
       initial_presentation_delay_minus_one: 0,
-      config_obus: [<<10, 11, 0, 0, 0, 66, 167, 191, 230, 46, 223, 200, 66>>]
+      config_obus: <<10, 11, 0, 0, 0, 66, 167, 191, 230, 46, 223, 200, 66>>
     }
 
     assert <<25::32, "av1C", box_data::binary>> = data

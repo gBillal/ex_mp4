@@ -3,8 +3,6 @@ defmodule ExMP4.Writer do
   This module contains functions to write MP4.
   """
 
-  use Bunch.Access
-
   alias ExMP4.{Box, Helper, Track}
   alias ExMP4.Box.{Ftyp, Moov}
 
@@ -181,8 +179,8 @@ defmodule ExMP4.Writer do
     if chunk_duration >= @chunk_duration do
       flush_chunk(writer, track, current_chunk[track.id])
     else
-      put_in(writer, [:tracks, track.id], track)
-      |> Map.put(:current_chunk, current_chunk)
+      tracks = Map.put(writer.tracks, track.id, track)
+      %__MODULE__{writer | tracks: tracks, current_chunk: current_chunk}
     end
   end
 
@@ -273,9 +271,12 @@ defmodule ExMP4.Writer do
 
     writer.writer_mod.write(writer.writer_state, chunk_data)
 
-    writer = put_in(writer, [:tracks, track.id], track)
-    writer = put_in(writer, [:current_chunk, track.id], {[], 0})
-    %{writer | mdat_size: writer.mdat_size + chunk_size}
+    %{
+      writer
+      | tracks: Map.put(writer.tracks, track.id, track),
+        current_chunk: Map.put(writer.current_chunk, track.id, {[], 0}),
+        mdat_size: writer.mdat_size + chunk_size
+    }
   end
 
   defp chunk_offset(%{ftyp_size: ftyp_size, mdat_size: mdat_size}) do
