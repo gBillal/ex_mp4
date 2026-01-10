@@ -40,6 +40,8 @@ defmodule ExMP4.Box.Hvcc do
   ]
 
   if Code.ensure_loaded?(MediaCodecs) do
+    alias MediaCodecs.H265.NALU.SPS
+
     @doc """
     Creates a new `hvcC` box from parameter sets.
 
@@ -47,7 +49,7 @@ defmodule ExMP4.Box.Hvcc do
     """
     @spec new([binary()], [binary()], [binary()], non_neg_integer()) :: t()
     def new(vps, sps, pps, nalu_length_size \\ 4) do
-      parsed_sps = MediaCodecs.H265.NALU.SPS.parse(List.first(sps))
+      parsed_sps = SPS.parse(List.first(sps))
       profile = parsed_sps.profile_tier_level
 
       <<constraint_indicator_flags::48>> =

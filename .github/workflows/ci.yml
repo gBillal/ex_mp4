@@ -1,0 +1,53 @@
+name: Elixir CI
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+env:
+  MIX_ENV: test
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        include:
+          - otp_version: 25.3
+            elixir_version: 1.15
+
+          - otp_version: 27.2
+            elixir_version: 1.18
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: erlef/setup-beam@v1
+        with:
+          elixir-version: ${{ matrix.elixir_version }}
+          otp-version: ${{ matrix.otp_version }}
+
+      - name: Install dependencies
+        run: mix deps.get
+      - name: Run tests
+        run: mix test --warnings-as-errors
+      - name: Run Credo
+        run: mix credo --strict
+      - name: Clean build
+        run: mix clean --deps
+      - name: Compile once again but without optional deps
+        run: mix compile --no-optional-deps
+
+  format:
+    runs-on: ubuntu-latest
+    name: mix format
+    steps:
+      - uses: actions/checkout@v4
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: 27.2
+          elixir-version: 1.18
+      - run: mix deps.get
+      - run: mix format --check-formatted
