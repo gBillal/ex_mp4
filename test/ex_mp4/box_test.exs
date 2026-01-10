@@ -3,22 +3,23 @@ defmodule ExMP4.BoxTest do
 
   use ExUnit.Case
 
+  alias ExMP4.Box
   alias ExMP4.Box.{Ipcm, Pcmc}
 
   test "parse and serialize" do
     assert {:ok, moov} = File.read("test/fixtures/moov.bin")
     assert <<812_644::32, "moov", rest::binary>> = moov
 
-    assert box = ExMP4.Box.parse(%ExMP4.Box.Moov{}, rest)
-    assert ExMP4.Box.serialize(box) |> IO.iodata_to_binary() == moov
+    assert box = Box.parse(%Box.Moov{}, rest)
+    assert Box.serialize(box) |> IO.iodata_to_binary() == moov
   end
 
   test "parse and serialize mvex" do
     assert {:ok, mvex} = File.read("test/fixtures/mvex.bin")
     assert <<88::32, "mvex", rest::binary>> = mvex
 
-    assert box = ExMP4.Box.parse(%ExMP4.Box.Mvex{}, rest)
-    assert ExMP4.Box.serialize(box) |> IO.iodata_to_binary() == mvex
+    assert box = Box.parse(%Box.Mvex{}, rest)
+    assert Box.serialize(box) |> IO.iodata_to_binary() == mvex
   end
 
   test "parse and serialize ipcm" do
@@ -31,10 +32,10 @@ defmodule ExMP4.BoxTest do
              sample_rate: {48_000, 0},
              sample_size: 24,
              pcmC: %Pcmc{format_flags: 0, pcm_sample_size: 24}
-           } = box = ExMP4.Box.parse(%Ipcm{}, :binary.part(ipcm, 8, byte_size(ipcm) - 8))
+           } = box = Box.parse(%Ipcm{}, :binary.part(ipcm, 8, byte_size(ipcm) - 8))
 
-    assert ExMP4.Box.size(box) == 50
-    assert ExMP4.Box.serialize(box) |> IO.iodata_to_binary() == ipcm
+    assert Box.size(box) == 50
+    assert Box.serialize(box) |> IO.iodata_to_binary() == ipcm
   end
 
   test "Parse and serialize av1C" do
@@ -42,7 +43,7 @@ defmodule ExMP4.BoxTest do
       <<0, 0, 0, 25, 97, 118, 49, 67, 129, 8, 12, 0, 10, 11, 0, 0, 0, 66, 167, 191, 230, 46, 223,
         200, 66>>
 
-    expected = %ExMP4.Box.Av1c{
+    expected = %Box.Av1c{
       seq_profile: 0,
       seq_level_idx_0: 8,
       seq_tier_0: 0,
@@ -58,8 +59,8 @@ defmodule ExMP4.BoxTest do
     }
 
     assert <<25::32, "av1C", box_data::binary>> = data
-    assert ExMP4.Box.parse(%ExMP4.Box.Av1c{}, box_data) == expected
-    assert ExMP4.Box.serialize(expected) |> IO.iodata_to_binary() == data
+    assert Box.parse(%Box.Av1c{}, box_data) == expected
+    assert Box.serialize(expected) |> IO.iodata_to_binary() == data
   end
 
   test "Parse and serialize Opus" do
@@ -70,27 +71,27 @@ defmodule ExMP4.BoxTest do
 
     assert <<55::32, "Opus", box_data::binary>> = data
 
-    expected_box = %ExMP4.Box.Opus{
+    expected_box = %Box.Opus{
       sample_size: 16,
       channel_count: 2,
       data_reference_index: 1,
-      sample_rate: {48000, 0},
-      dops: %ExMP4.Box.Dops{
+      sample_rate: {48_000, 0},
+      dops: %Box.Dops{
         output_channel_count: 2,
         pre_skip: 312,
-        input_sample_rate: 48000,
+        input_sample_rate: 48_000,
         output_gain: 0,
         channel_mapping_family: 0,
         channel_mapping_table: nil
       }
     }
 
-    assert ExMP4.Box.parse(%ExMP4.Box.Opus{}, box_data) == expected_box
-    assert ExMP4.Box.serialize(expected_box) |> IO.iodata_to_binary() == data
+    assert Box.parse(%Box.Opus{}, box_data) == expected_box
+    assert Box.serialize(expected_box) |> IO.iodata_to_binary() == data
   end
 
   test "serialize and parse sidx" do
-    sidx = %ExMP4.Box.Sidx{
+    sidx = %Box.Sidx{
       version: 0,
       flags: 0,
       reference_id: 1,
@@ -122,18 +123,18 @@ defmodule ExMP4.BoxTest do
         0, 0, 0, 0, 0, 2, 128, 0, 1, 0, 0, 0, 125, 0, 144, 0, 0, 0, 128, 0, 1, 80, 0, 0, 187, 128,
         144, 0, 0, 0>>
 
-    assert ExMP4.Box.size(sidx) == 56
-    assert ExMP4.Box.serialize(sidx) |> IO.iodata_to_binary() == expected
-    assert ExMP4.Box.parse(%ExMP4.Box.Sidx{}, :binary.part(expected, 8, 48)) == sidx
+    assert Box.size(sidx) == 56
+    assert Box.serialize(sidx) |> IO.iodata_to_binary() == expected
+    assert Box.parse(%Box.Sidx{}, :binary.part(expected, 8, 48)) == sidx
 
-    assert ExMP4.Box.Sidx.duration(sidx) == 80_000
-    assert ExMP4.Box.Sidx.duration(sidx, :second) == 5.0
-    assert ExMP4.Box.Sidx.size(sidx) == 592
-    assert ExMP4.Box.Sidx.bitrate(sidx) == 947
+    assert Box.Sidx.duration(sidx) == 80_000
+    assert Box.Sidx.duration(sidx, :second) == 5.0
+    assert Box.Sidx.size(sidx) == 592
+    assert Box.Sidx.bitrate(sidx) == 947
   end
 
   test "serialize and parse styp" do
-    styp = %ExMP4.Box.Styp{
+    styp = %Box.Styp{
       major_brand: "isom",
       minor_version: 512,
       compatible_brands: ["isom", "iso6"]
@@ -143,8 +144,8 @@ defmodule ExMP4.BoxTest do
       <<0, 0, 0, 24, 115, 116, 121, 112, 105, 115, 111, 109, 0, 0, 2, 0, 105, 115, 111, 109, 105,
         115, 111, 54>>
 
-    assert ExMP4.Box.size(styp) == 24
-    assert ExMP4.Box.serialize(styp) |> IO.iodata_to_binary() == expected
-    assert ExMP4.Box.parse(%ExMP4.Box.Styp{}, :binary.part(expected, 8, 16)) == styp
+    assert Box.size(styp) == 24
+    assert Box.serialize(styp) |> IO.iodata_to_binary() == expected
+    assert Box.parse(%Box.Styp{}, :binary.part(expected, 8, 16)) == styp
   end
 end
