@@ -34,9 +34,8 @@ defmodule ExMP4.Box.Av1c do
   ]
 
   if Code.ensure_loaded?(MediaCodecs) do
-    import MediaCodecs.Helper, only: [bool_to_int: 1]
-
     alias MediaCodecs.AV1.OBU
+    alias MediaCodecs.Helper
 
     @doc """
     Creates a new `av1c` box from sequence header OBU.
@@ -69,9 +68,9 @@ defmodule ExMP4.Box.Av1c do
         seq_profile: sequence_header.seq_profile,
         seq_level_idx_0: sequence_header.operating_points[0].seq_level_idx,
         seq_tier_0: sequence_header.operating_points[0].seq_tier,
-        high_bitdepth: bool_to_int(color_config[:high_bitdepth]),
-        twelve_bit: bool_to_int(color_config[:high_bitdepth] == 12),
-        monochrome: bool_to_int(color_config[:monochrome]),
+        high_bitdepth: Helper.bool_to_int(color_config[:high_bitdepth]),
+        twelve_bit: Helper.bool_to_int(color_config[:high_bitdepth] == 12),
+        monochrome: Helper.bool_to_int(color_config[:monochrome]),
         chroma_subsampling_x: color_config[:subsampling_x],
         chroma_subsampling_y: color_config[:subsampling_y],
         chroma_sample_position: color_config[:chroma_sample_position],
