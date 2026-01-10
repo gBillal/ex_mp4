@@ -37,6 +37,8 @@ jobs:
         run: mix test --warnings-as-errors
       - name: Run Credo
         run: mix credo --strict
+      - name: Compile once again but without optional deps
+        run: mix compile --force --warnings-as-errors --no-optional-deps
 
   format:
     runs-on: ubuntu-latest
@@ -47,4 +49,5 @@ jobs:
         with:
           otp-version: 27.2
           elixir-version: 1.18
+      - run: mix deps.get
       - run: mix format --check-formatted
