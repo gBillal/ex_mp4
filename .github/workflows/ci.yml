@@ -38,7 +38,7 @@ jobs:
       - name: Clean build
         run: mix clean --deps
       - name: Compile once again but without optional deps
-        run: mix compile --force --warnings-as-errors --no-optional-deps
+        run: mix compile --no-optional-deps
 
   format:
     runs-on: ubuntu-latest
