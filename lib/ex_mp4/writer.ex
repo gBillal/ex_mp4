@@ -156,7 +156,7 @@ defmodule ExMP4.Writer do
       |> Map.new()
 
     track = track!(writer, track_id) |> Map.merge(opts)
-    put_in(writer, [:tracks, track_id], track)
+    %{writer | tracks: Map.put(writer.tracks, track_id, track)}
   end
 
   @doc """

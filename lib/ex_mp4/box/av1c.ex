@@ -112,17 +112,11 @@ defmodule ExMP4.Box.Av1c do
     end
 
     def serialize(box) do
-      [
-        <<size(box)::32>>,
-        "av1C",
-        <<0x81>>,
-        <<box.seq_profile::3, box.seq_level_idx_0::5, box.seq_tier_0::1, box.high_bitdepth::1,
-          box.twelve_bit::1, box.monochrome::1, box.chroma_subsampling_x::1,
-          box.chroma_subsampling_y::1, box.chroma_sample_position::2, 0::3,
-          box.initial_presentation_delay_present::1,
-          box.initial_presentation_delay_minus_one::4>>,
-        box.config_obus
-      ]
+      <<size(box)::32, "av1C", 0x81, box.seq_profile::3, box.seq_level_idx_0::5,
+        box.seq_tier_0::1, box.high_bitdepth::1, box.twelve_bit::1, box.monochrome::1,
+        box.chroma_subsampling_x::1, box.chroma_subsampling_y::1, box.chroma_sample_position::2,
+        0::3, box.initial_presentation_delay_present::1,
+        box.initial_presentation_delay_minus_one::4, box.config_obus::binary>>
     end
   end
 end
