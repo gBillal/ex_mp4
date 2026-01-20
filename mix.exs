@@ -1,7 +1,7 @@
 defmodule ExMP4.MixProject do
   use Mix.Project
 
-  @version "0.14.1"
+  @version "0.14.2"
   @github_url "https://github.com/gBillal/ex_mp4"
 
   def project do
