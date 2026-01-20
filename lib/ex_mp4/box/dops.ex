@@ -65,20 +65,17 @@ defmodule ExMP4.Box.Dops do
     end
 
     def serialize(box) do
-      channel_mapping_table =
-        if box.channel_mapping_table do
-          <<box.channel_mapping_table.stream_count::8, box.channel_mapping_table.coupled_count::8,
-            box.channel_mapping_table.channel_mapping::integer-size(8 * box.output_channel_count)>>
-        else
-          <<>>
-        end
+      result =
+        <<size(box)::32, "dOps", 0, box.output_channel_count::8, box.pre_skip::16,
+          box.input_sample_rate::32, box.output_gain::16-signed, box.channel_mapping_family::8>>
 
-      [
-        <<size(box)::32, "dOps">>,
-        <<0, box.output_channel_count::8, box.pre_skip::16, box.input_sample_rate::32,
-          box.output_gain::16-signed, box.channel_mapping_family::8>>,
-        channel_mapping_table
-      ]
+      if box.channel_mapping_table do
+        <<result::binary, box.channel_mapping_table.stream_count::8,
+          box.channel_mapping_table.coupled_count::8,
+          box.channel_mapping_table.channel_mapping::integer-size(8 * box.output_channel_count)>>
+      else
+        result
+      end
     end
   end
 end
