@@ -17,8 +17,8 @@ jobs:
           - otp_version: 25.3
             elixir_version: 1.15
 
-          - otp_version: 27.2
-            elixir_version: 1.18
+          - otp_version: 28.1.1
+            elixir_version: 1.19.5-otp-28
     runs-on: ubuntu-latest
 
     steps:

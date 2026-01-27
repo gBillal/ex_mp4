@@ -177,7 +177,7 @@ defmodule ExMP4.Box.Traf do
     if zoro_offset?, do: flags, else: Bitwise.bor(flags, 0x800)
   end
 
-  defp track_header(tfhd, tr_flags, first_entry) do
+  defp track_header(%Tfhd{} = tfhd, tr_flags, first_entry) do
     duration = if Bitwise.band(tr_flags, 0x8) != 0, do: first_entry.sample_duration
     size = if Bitwise.band(tr_flags, 0x10) != 0, do: first_entry.sample_size
     flags = if Bitwise.band(tr_flags, 0x20) != 0, do: first_entry.sample_flags

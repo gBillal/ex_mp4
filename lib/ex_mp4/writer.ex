@@ -163,7 +163,7 @@ defmodule ExMP4.Writer do
   Write a sample.
   """
   @spec write_sample(t(), ExMP4.Sample.t()) :: t()
-  def write_sample(writer, sample) do
+  def write_sample(%__MODULE__{} = writer, sample) do
     track = Track.store_sample(track!(writer, sample.track_id), sample)
 
     current_chunk =
