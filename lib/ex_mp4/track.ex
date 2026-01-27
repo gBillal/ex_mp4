@@ -93,7 +93,7 @@ defmodule ExMP4.Track do
 
   @doc false
   @spec to_trak(t(), ExMP4.timescale()) :: Trak.t()
-  def to_trak(%{sample_table: stbl} = track, movie_timescale) do
+  def to_trak(%{sample_table: %Stbl{} = stbl} = track, movie_timescale) do
     %Trak{
       tkhd: %ExMP4.Box.Tkhd{
         track_id: track.id,
@@ -194,7 +194,7 @@ defmodule ExMP4.Track do
 
   @doc false
   @spec flush_chunk(t(), ExMP4.offset()) :: t()
-  def flush_chunk(%{sample_table: stbl} = track, chunk_offset) do
+  def flush_chunk(%{sample_table: %Stbl{} = stbl} = track, chunk_offset) do
     samples_per_chunk = track._stsc_entry.samples_per_chunk
     stco = %{stbl.stco | entries: [chunk_offset | stbl.stco.entries]}
 
@@ -351,7 +351,7 @@ defmodule ExMP4.Track do
   end
 
   # Samples storage
-  defp update_stts(%{stts: stts} = stbl, %Sample{duration: duration}) do
+  defp update_stts(%Stbl{stts: stts} = stbl, %Sample{duration: duration}) do
     entries =
       case stts.entries do
         [%{sample_count: count, sample_delta: ^duration} = entry | entries] ->
@@ -364,7 +364,7 @@ defmodule ExMP4.Track do
     %Stbl{stbl | stts: %{stts | entries: entries}}
   end
 
-  defp update_ctts(%{ctts: ctts} = stbl, %Sample{dts: dts, pts: pts}, :video) do
+  defp update_ctts(%Stbl{ctts: ctts} = stbl, %Sample{dts: dts, pts: pts}, :video) do
     diff = pts - dts
 
     entries =
@@ -381,7 +381,7 @@ defmodule ExMP4.Track do
 
   defp update_ctts(stbl, _sample, _other), do: stbl
 
-  defp update_stsz(%{stsz: stsz} = stbl, %Sample{payload: payload}) do
+  defp update_stsz(%Stbl{stsz: stsz} = stbl, %Sample{payload: payload}) do
     stsz = %{
       stsz
       | sample_count: stsz.sample_count + 1,
@@ -391,7 +391,7 @@ defmodule ExMP4.Track do
     %Stbl{stbl | stsz: stsz}
   end
 
-  defp update_stss(%{stss: stss} = stbl, %Sample{sync?: true}, :video) do
+  defp update_stss(%Stbl{stss: stss} = stbl, %Sample{sync?: true}, :video) do
     %Stbl{stbl | stss: %{stss | entries: [stbl.stsz.sample_count | stss.entries]}}
   end
 

@@ -20,17 +20,11 @@ defmodule ExMP4.Helper do
       iex> ExMP4.Helper.timescalify(21, :millisecond, 90_000)
       1890
 
-      iex> ExMP4.Helper.timescalify(10, Ratio.new(30_000, 1001), Ratio.new(40, 2))
-      7
-
       iex> ExMP4.Helper.timescalify(1600, :millisecond, :second)
       2
 
       iex> ExMP4.Helper.timescalify(15, :nanosecond, :nanosecond)
       15
-
-      iex> ExMP4.Helper.timescalify(15000, Ratio.new(30_000, 1001), :second, :exact)
-      500.5
   """
   @spec timescalify(Ratio.t() | integer, timescale(), timescale(), :round | :exact) ::
           integer() | float()
@@ -43,20 +37,10 @@ defmodule ExMP4.Helper do
     timescalify(time, convert_unit(source_unit), convert_unit(target_unit), rounding)
   end
 
-  def timescalify(time, source_timescale, target_timescale, rounding)
-      when is_integer(source_timescale) and is_integer(target_timescale) do
+  def timescalify(time, source_timescale, target_timescale, rounding) do
     case rounding do
       :round -> round(time * target_timescale / source_timescale)
       :exact -> time * target_timescale / source_timescale
-    end
-  end
-
-  def timescalify(time, source_timescale, target_timescale, rounding) do
-    use Numbers, overload_operators: true
-
-    case rounding do
-      :round -> Ratio.trunc(time * target_timescale / source_timescale + 0.5)
-      :exact -> Ratio.to_float(time * target_timescale / source_timescale)
     end
   end
 
@@ -84,7 +68,6 @@ defmodule ExMP4.Helper do
   defp convert_unit(:microsecond), do: 10 ** 6
   defp convert_unit(:millisecond), do: 10 ** 3
   defp convert_unit(:second), do: 1
-  defp convert_unit(%Ratio{} = ratio), do: ratio
   defp convert_unit(integer) when is_integer(integer), do: integer
   defp convert_unit(unit), do: raise("Expected one of #{inspect(@units)}, got: #{inspect(unit)}")
 

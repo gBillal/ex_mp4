@@ -334,14 +334,14 @@ defmodule ExMP4.FWriter do
         traf = Box.Traf.finalize(traf, writer.moof_base_offset)
         data = Enum.reverse(data)
 
-        moof = %Box.Moof{moof | traf: [traf | moof.traf]}
-        mdat = %Box.Mdat{mdat | content: [data | mdat.content]}
+        moof = %{moof | traf: [traf | moof.traf]}
+        mdat = %{mdat | content: [data | mdat.content]}
 
         {moof, mdat}
       end)
 
-    moof = %Box.Moof{moof | traf: Enum.reverse(moof.traf)}
-    mdat = %Box.Mdat{mdat | content: Enum.reverse(mdat.content)}
+    moof = %{moof | traf: Enum.reverse(moof.traf)}
+    mdat = %{mdat | content: Enum.reverse(mdat.content)}
 
     {moof, mdat}
   end
@@ -350,7 +350,7 @@ defmodule ExMP4.FWriter do
 
   defp finalize_segments(segments, moof, mdat) do
     Enum.map_reduce(moof.traf, 0, fn traf, acc ->
-      segment = segments[traf.tfhd.track_id]
+      %Box.Sidx{} = segment = segments[traf.tfhd.track_id]
 
       segment = %Box.Sidx{
         segment

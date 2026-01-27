@@ -37,9 +37,9 @@ defmodule ExMP4.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:ratio, "~> 4.0"},
       {:media_codecs, "~> 0.10.0", optional: true},
       {:table_rex, "~> 4.0", optional: true},
+      {:benchee, ">= 0.0.0"},
       {:ex_doc, "~> 0.34", only: :dev, runtime: false},
       {:dialyxir, ">= 0.0.0", only: :dev, runtime: false},
       {:credo, ">= 0.0.0", only: [:dev, :test], runtime: false}
