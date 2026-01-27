@@ -114,7 +114,7 @@ defmodule ExMP4.Box.Stbl do
 
   defp sample_size({element, %Stbl{stsz: %Stsz{sample_size: 0} = stsz} = stbl})
        when not is_nil(stsz) do
-    <<sample_size::32, entries::binary>> = stsz.entries
+    [sample_size | entries] = stsz.entries
     stsz = %Stsz{stsz | entries: entries}
     {%{element | size: sample_size}, %Stbl{stbl | stsz: stsz}}
   end
@@ -129,7 +129,9 @@ defmodule ExMP4.Box.Stbl do
     {%{element | size: sample_size}, %Stbl{stbl | stz2: stz2}}
   end
 
-  defp sample_offset({element, %{stco: stco, co64: co64, stsc: stsc, _idx: sample_index} = stbl}) do
+  defp sample_offset(
+         {element, %Stbl{stco: stco, co64: co64, stsc: stsc, _idx: sample_index} = stbl}
+       ) do
     [chunk_offset | chunk_entries] = Map.get(stco || co64, :entries)
     [stsc_entry | stsc_entries] = stsc.entries
 
