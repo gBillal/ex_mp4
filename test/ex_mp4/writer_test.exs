@@ -5,7 +5,7 @@ defmodule ExMP4.WriterTest do
 
   import ExMP4.Support.Utils
 
-  alias ExMP4.{Sample, Writer}
+  alias ExMP4.{Box, Sample, Writer}
 
   @moduletag :tmp_dir
 
@@ -100,7 +100,7 @@ defmodule ExMP4.WriterTest do
   for fast_start <- [false, true] do
     test "write mp4 with uuid boxes (fast_start: #{fast_start})", %{tmp_dir: tmp_dir} do
       filepath = Path.join(tmp_dir, "out.mp4")
-      uuids = [ExMP4.Box.UUID.new(<<1::128>>, "data"), ExMP4.Box.UUID.new(<<2::128>>)]
+      uuids = [Box.UUID.new(<<1::128>>, "data"), Box.UUID.new(<<2::128>>)]
 
       assert :ok =
                filepath

@@ -5,7 +5,7 @@ defmodule ExMP4.FWriterTest do
 
   import ExMP4.Support.Utils
 
-  alias ExMP4.{FWriter, Sample}
+  alias ExMP4.{Box, FWriter, Sample}
 
   @moduletag :tmp_dir
 
@@ -74,7 +74,7 @@ defmodule ExMP4.FWriterTest do
 
   test "write fragmented mp4 with uuid boxes", %{tmp_dir: tmp_dir} do
     filepath = Path.join(tmp_dir, "out.mp4")
-    uuids = [ExMP4.Box.UUID.new(<<1::128>>, "data")]
+    uuids = [Box.UUID.new(<<1::128>>, "data")]
 
     assert {:ok, writer} =
              FWriter.new(filepath, [video_track(), audio_track()], uuid: uuids, duration: true)
