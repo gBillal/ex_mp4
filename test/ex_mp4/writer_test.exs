@@ -5,7 +5,7 @@ defmodule ExMP4.WriterTest do
 
   import ExMP4.Support.Utils
 
-  alias ExMP4.{Sample, Writer}
+  alias ExMP4.{Box, Sample, Writer}
 
   @moduletag :tmp_dir
 
@@ -95,6 +95,34 @@ defmodule ExMP4.WriterTest do
 
     assert {:ok, data} = File.read(filepath)
     assert <<_ftyp::binary-size(32), _moov_size::binary-size(4), "moov", _rest::binary>> = data
+  end
+
+  for fast_start <- [false, true] do
+    test "write mp4 with uuid boxes (fast_start: #{fast_start})", %{tmp_dir: tmp_dir} do
+      filepath = Path.join(tmp_dir, "out.mp4")
+      uuids = [Box.UUID.new(<<1::128>>, "data"), Box.UUID.new(<<2::128>>)]
+
+      assert :ok =
+               filepath
+               |> Writer.new!(fast_start: unquote(fast_start))
+               |> Writer.write_header()
+               |> Writer.add_tracks([video_track(), audio_track()])
+               |> then(&Enum.into(Enum.concat(video_samples(), audio_samples()), &1))
+               |> Writer.write_trailer(uuid: uuids)
+
+      assert {:ok, reader} = ExMP4.Reader.new(filepath)
+      assert reader.uuid == uuids
+
+      for {sample, idx} <- Enum.with_index(video_samples()) do
+        assert sample == ExMP4.Reader.read_sample(reader, 1, idx)
+      end
+
+      for {sample, idx} <- Enum.with_index(audio_samples()) do
+        assert sample == ExMP4.Reader.read_sample(reader, 2, idx)
+      end
+
+      assert :ok = ExMP4.Reader.close(reader)
+    end
   end
 
   defp video_samples do

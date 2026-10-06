@@ -186,16 +186,23 @@ defmodule ExMP4.Writer do
 
   @doc """
   Write the trailer and close the stream.
+
+  The following options can be provided:
+    * `creation_time` - Set the creation time. Defaults to: now.
+    * `modification_time` - Set the modification time. Defaults to: now.
+    * `uuid` - A list of `ExMP4.Box.UUID` boxes to include in the `moov` box. Defaults to: `[]`.
   """
   @spec write_trailer(t()) :: :ok
   def write_trailer(%{fast_start: fast_start} = writer, opts \\ []) do
     [
       creation_time: creation_time,
-      modification_time: modification_time
+      modification_time: modification_time,
+      uuid: uuid
     ] =
       Keyword.validate!(opts,
         creation_time: DateTime.utc_now(:second),
-        modification_time: DateTime.utc_now(:second)
+        modification_time: DateTime.utc_now(:second),
+        uuid: []
       )
       |> Enum.sort()
 
@@ -218,7 +225,8 @@ defmodule ExMP4.Writer do
         creation_time: creation_time,
         modification_time: modification_time
       },
-      trak: trak
+      trak: trak,
+      uuid: uuid
     }
 
     after_ftyp = {:bof, writer.ftyp_size}

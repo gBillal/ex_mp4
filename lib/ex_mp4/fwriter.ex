@@ -30,7 +30,8 @@ defmodule ExMP4.FWriter do
           creation_time: DateTime.t(),
           modification_time: DateTime.t(),
           duration: integer() | boolean(),
-          moof_base_offset: boolean()
+          moof_base_offset: boolean(),
+          uuid: [Box.UUID.t()]
         ]
 
   @type writer_options :: any()
@@ -67,6 +68,7 @@ defmodule ExMP4.FWriter do
       If an integer, it's the total duration in the `movie` timescale and it'll be set in the `mehd` box.
     * `moof_base_offset` - if `true`, it indicates that the `base‐data‐offset` for the track fragments
       is the position of the first byte of the enclosing Movie Fragment Box. Defaults to: `false`.
+    * `uuid` - A list of `ExMP4.Box.UUID` boxes to include in the `moov` box. Defaults to: `[]`.
 
   The last argument is an optional module implementing `ExMP4.FragDataWriter`.
   """
@@ -260,7 +262,8 @@ defmodule ExMP4.FWriter do
       modification_time: utc_date,
       duration: false,
       moof_base_offset: false,
-      sidx: false
+      sidx: false,
+      uuid: []
     )
   end
 
@@ -289,7 +292,8 @@ defmodule ExMP4.FWriter do
       mvex: %Box.Mvex{
         mehd: mehd_box,
         trex: Enum.map(tracks, & &1.trex)
-      }
+      },
+      uuid: opts[:uuid]
     }
 
     writer_state = writer.writer_mod.write_init_header(writer.writer_state, [ftyp_box, movie_box])
