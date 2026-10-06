@@ -46,7 +46,7 @@ defmodule ExMP4.Box.Trun do
       {first_sample_flags, rest} = parse_entry(flags &&& 0x4, rest)
 
       {entries, <<>>} =
-        Enum.reduce(1..sample_count, {[], rest}, fn _idx, {entries, data} ->
+        Enum.reduce(1..sample_count//1, {[], rest}, fn _idx, {entries, data} ->
           {sample_duration, rest} = parse_entry(flags &&& 0x100, data)
           {sample_size, rest} = parse_entry(flags &&& 0x200, rest)
           {sample_flags, rest} = parse_entry(flags &&& 0x400, rest)

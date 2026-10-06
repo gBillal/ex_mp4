@@ -5,20 +5,21 @@ defmodule ExMP4.Box.Moov do
 
   import ExMP4.Box.Utils, only: [parse_header: 1]
 
-  alias ExMP4.Box.{Mvex, Mvhd, Trak}
+  alias ExMP4.Box.{Mvex, Mvhd, Trak, UUID}
 
   @type t :: %__MODULE__{
           mvhd: Mvhd.t(),
           trak: [Trak.t()],
-          mvex: Mvex.t() | nil
+          mvex: Mvex.t() | nil,
+          uuid: [UUID.t()]
         }
 
-  defstruct mvhd: %Mvhd{}, trak: [], mvex: nil
+  defstruct mvhd: %Mvhd{}, trak: [], mvex: nil, uuid: []
 
   defimpl ExMP4.Box do
     def size(box) do
       ExMP4.header_size() + ExMP4.Box.size(box.mvhd) + ExMP4.Box.size(box.trak) +
-        ExMP4.Box.size(box.mvex)
+        ExMP4.Box.size(box.mvex) + ExMP4.Box.size(box.uuid)
     end
 
     def parse(box, data), do: do_parse(box, data)
@@ -28,7 +29,8 @@ defmodule ExMP4.Box.Moov do
         <<size(box)::32, "moov">>,
         ExMP4.Box.serialize(box.mvhd),
         ExMP4.Box.serialize(box.trak),
-        ExMP4.Box.serialize(box.mvex)
+        ExMP4.Box.serialize(box.mvex),
+        ExMP4.Box.serialize(box.uuid)
       ]
     end
 
@@ -47,6 +49,10 @@ defmodule ExMP4.Box.Moov do
 
           {"mvex", box_data, rest} ->
             box = %{box | mvex: ExMP4.Box.parse(%Mvex{}, box_data)}
+            {box, rest}
+
+          {"uuid", box_data, rest} ->
+            box = %{box | uuid: box.uuid ++ [ExMP4.Box.parse(%UUID{}, box_data)]}
             {box, rest}
 
           {_box_name, _box_data, rest} ->

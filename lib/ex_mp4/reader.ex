@@ -13,6 +13,7 @@ defmodule ExMP4.Reader do
     * `major_brand`
     * `minor_version`
     * `compatible_brands`
+    * `uuid` - List of `uuid` boxes (`ExMP4.Box.UUID`) found in the `moov` box.
 
 
   ## Examples
@@ -73,6 +74,7 @@ defmodule ExMP4.Reader do
           progressive?: boolean(),
           creation_time: DateTime.t(),
           modification_time: DateTime.t(),
+          uuid: [Box.UUID.t()],
 
           # private fields
           reader_mod: module(),
@@ -94,6 +96,7 @@ defmodule ExMP4.Reader do
     :reader_mod,
     :reader_state,
     :tracks,
+    uuid: [],
     location: 0
   ]
 
@@ -280,7 +283,8 @@ defmodule ExMP4.Reader do
         modification_time: moov.mvhd.modification_time,
         fragmented?: not is_nil(moov.mvex),
         progressive?: is_nil(reader.progressive?),
-        tracks: tracks
+        tracks: tracks,
+        uuid: moov.uuid
     }
   end
 

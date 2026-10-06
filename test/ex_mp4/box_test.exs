@@ -148,4 +148,32 @@ defmodule ExMP4.BoxTest do
     assert Box.serialize(styp) |> IO.iodata_to_binary() == expected
     assert Box.parse(%Box.Styp{}, :binary.part(expected, 8, 16)) == styp
   end
+
+  test "serialize and parse uuid" do
+    type = <<0::128>>
+    uuid = Box.UUID.new(type, "some data")
+
+    expected = <<33::32, "uuid", type::binary, "some data">>
+
+    assert Box.size(uuid) == 33
+    assert Box.serialize(uuid) |> IO.iodata_to_binary() == expected
+    assert Box.parse(%Box.UUID{}, :binary.part(expected, 8, 25)) == uuid
+  end
+
+  test "uuid type must be 16 bytes" do
+    assert_raise ArgumentError, fn -> Box.UUID.new("short", "data") end
+  end
+
+  test "parse and serialize moov with uuid boxes" do
+    assert {:ok, <<_size::32, "moov", rest::binary>>} = File.read("test/fixtures/moov.bin")
+
+    moov = Box.parse(%Box.Moov{}, rest)
+    uuids = [Box.UUID.new(<<1::128>>, "first"), Box.UUID.new(<<2::128>>, "second")]
+    moov = %{moov | uuid: uuids}
+
+    data = Box.serialize(moov) |> IO.iodata_to_binary()
+    assert <<size::32, "moov", rest::binary>> = data
+    assert size == Box.size(moov)
+    assert Box.parse(%Box.Moov{}, rest) == moov
+  end
 end

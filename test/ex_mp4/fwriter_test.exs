@@ -72,6 +72,33 @@ defmodule ExMP4.FWriterTest do
     assert :ok = ExMP4.Reader.close(reader)
   end
 
+  test "write fragmented mp4 with uuid boxes", %{tmp_dir: tmp_dir} do
+    filepath = Path.join(tmp_dir, "out.mp4")
+    uuids = [ExMP4.Box.UUID.new(<<1::128>>, "data")]
+
+    assert {:ok, writer} =
+             FWriter.new(filepath, [video_track(), audio_track()], uuid: uuids, duration: true)
+
+    video_samples = for idx <- 0..4, do: video_sample(idx)
+
+    assert :ok =
+             writer
+             |> FWriter.create_fragment()
+             |> then(&Enum.reduce(video_samples, &1, fn s, w -> FWriter.write_sample(w, s) end))
+             |> FWriter.flush_fragment()
+             |> FWriter.close()
+
+    assert {:ok, reader} = ExMP4.Reader.new(filepath)
+    assert reader.uuid == uuids
+    assert reader.duration == 3500
+
+    for idx <- 0..4 do
+      assert Enum.at(video_samples, idx) == ExMP4.Reader.read_sample(reader, 1, idx)
+    end
+
+    assert :ok = ExMP4.Reader.close(reader)
+  end
+
   test "write fragmented mp4 (base is moof)", %{tmp_dir: tmp_dir} do
     filepath = Path.join(tmp_dir, "out.mp4")
 
